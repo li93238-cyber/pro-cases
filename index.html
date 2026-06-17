@@ -267,8 +267,53 @@ body.dark .chat-to-btn.active{border-color:#6366f1;background:#1e1b4b;color:#818
 .smena-stat{background:#f8fafc;border-radius:12px;padding:16px;text-align:center;margin-bottom:12px}
 body.dark .smena-stat{background:#0f172a}
 @media(max-width:900px){.cashier-grid{grid-template-columns:1fr}.two-cols{grid-template-columns:1fr}}
+
+/* ===== MOBIL REJIM ===== */
+.mobile-tabbar{display:none}
+@media(max-width:768px){
+  .sidebar{display:none}
+  .app{display:block}
+  .main{min-height:100vh}
+  .page-content{padding:14px;padding-bottom:90px}
+  .topbar{padding:0 14px}
+  .stat-grid{grid-template-columns:1fr 1fr;gap:10px}
+  .stat-card{padding:14px;border-radius:14px}
+  .stat-value{font-size:19px}
+  .two-cols{grid-template-columns:1fr}
+  .card{padding:14px;border-radius:14px}
+  table{font-size:12px}
+  th,td{padding:7px 8px}
+  .mobile-tabbar{
+    display:flex;position:fixed;bottom:0;left:0;right:0;height:64px;
+    background:#fff;border-top:1px solid #f1f5f9;z-index:200;
+    align-items:center;justify-content:space-around;
+    box-shadow:0 -4px 20px rgba(0,0,0,.06);
+    padding-bottom:env(safe-area-inset-bottom)
+  }
+  body.dark .mobile-tabbar{background:#1e293b;border-color:#334155}
+  .mtab-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:#94a3b8;font-size:11px;font-weight:600;flex:1;padding:6px 0;font-family:inherit}
+  .mtab-btn.active{color:#6366f1}
+  .mtab-fab{width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#818cf8);display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 16px rgba(99,102,241,.4);margin-top:-26px;flex:none}
+  .mob-hero{background:linear-gradient(135deg,#312e81,#4338ca);border-radius:18px;padding:20px;color:#fff;margin-bottom:16px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between}
+  .mob-hero-icon{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.18);display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .mob-menu-item{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:14px;background:#fff;margin-bottom:8px;cursor:pointer;border:1.5px solid transparent;transition:all .15s}
+  body.dark .mob-menu-item{background:#1e293b}
+  .mob-menu-item.active{background:#eff6ff;border-color:#c7d2fe}
+  body.dark .mob-menu-item.active{background:#1e1b4b;border-color:#4338ca}
+  .mob-menu-icon{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .mob-stat-card{background:#fff;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:6px}
+  body.dark .mob-stat-card{background:#1e293b}
+  .mob-stat-icon{width:32px;height:32px;border-radius:9px;display:flex;align-items:center;justify-content:center}
+  .desktop-only{display:none !important}
+  .cashier-grid{display:flex;flex-direction:column;gap:14px}
+  .pay-panel{order:2}
+}
+@media(min-width:769px){
+  .mobile-only{display:none !important}
+}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 </head>
 <body>
 
@@ -412,6 +457,29 @@ body.dark .smena-stat{background:#0f172a}
     </div>
 
     <div class="page-content" id="page-content"></div>
+  </div>
+
+  <!-- MOBIL PASTKI TAB BAR -->
+  <div class="mobile-tabbar" id="mobile-tabbar">
+    <button class="mtab-btn active" data-mpage="dashboard" onclick="goPage('dashboard')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+      <span>Boshqaruv</span>
+    </button>
+    <button class="mtab-btn" data-mpage="cashier" onclick="goPage('cashier')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <span>Kassa</span>
+    </button>
+    <button class="mtab-fab" onclick="openMobileMenu()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
+    <button class="mtab-btn" data-mpage="warehouse" onclick="goPage('warehouse')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+      <span>Ombor</span>
+    </button>
+    <button class="mtab-btn" data-mpage="profile" onclick="openMobileMenu()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+      <span>Profil</span>
+    </button>
   </div>
 </div>
 
@@ -883,10 +951,71 @@ function doLogout(){
 // ===== SIDEBAR =====
 let sidebarOpen=true;
 function toggleSidebar(){
+  if(window.innerWidth<=768){openMobileMenu();return;}
   sidebarOpen=!sidebarOpen;
   const sb=document.getElementById('sidebar');
   sb.classList.toggle('collapsed',!sidebarOpen);
   document.querySelectorAll('.label,.logo-text').forEach(el=>el.style.display=sidebarOpen?'':'none');
+}
+window.addEventListener('resize',()=>{
+  if(window.innerWidth>768)closeMobileMenu();
+});
+
+// ===== MOBIL TO'LIQ EKRAN MENYU =====
+const mobileMenuItems=[
+  {page:'dashboard',label:'Boshqaruv',color:'#6366f1',icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>'},
+  {page:'cashier',label:'Kassa',color:'#22c55e',icon:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>'},
+  {page:'orders',label:'Buyurtmalar',color:'#3b82f6',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>'},
+  {page:'warehouse',label:'Ombor',color:'#f59e0b',icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>'},
+  {page:'inventory',label:'Inventarizatsiya',color:'#8b5cf6',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9,12 11,14 15,10"/>'},
+  {page:'operations',label:'Kassa Amaliyot',color:'#ef4444',icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>'},
+  {page:'users',label:'Foydalanuvchilar',color:'#06b6d4',icon:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',adminOnly:true},
+  {page:'chat',label:'Xabarlar',color:'#ec4899',icon:'<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'},
+  {page:'debts',label:'Qarzlar',color:'#f97316',icon:'<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>'},
+];
+
+function openMobileMenu(){
+  let el=document.getElementById('mobile-menu-overlay');
+  if(!el){
+    el=document.createElement('div');
+    el.id='mobile-menu-overlay';
+    el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:800;display:flex;align-items:flex-end';
+    el.onclick=(e)=>{if(e.target===el)closeMobileMenu();};
+    document.body.appendChild(el);
+  }
+  const activeNavEl=document.querySelector('.nav-item.active')||document.querySelector('[data-page].active');
+  const activePage=(activeNavEl&&activeNavEl.dataset)?activeNavEl.dataset.page:'';
+  const items=mobileMenuItems.filter(it=>!it.adminOnly||currentUser.role==='admin').map(it=>{
+    const active=it.page===activePage;
+    return`<div class="mob-menu-item${active?' active':''}" onclick="goPage('${it.page}')">
+      <div class="mob-menu-icon" style="background:${it.color}18;color:${it.color}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${it.icon}</svg></div>
+      <span style="font-weight:600;font-size:14px;flex:1">${it.label}</span>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2"><polyline points="9,18 15,12 9,6"/></svg>
+    </div>`;
+  }).join('');
+  el.innerHTML=`
+    <div style="background:#f8fafc;border-radius:20px 20px 0 0;padding:20px 16px;width:100%;max-height:80vh;overflow:auto;animation:slideUp .25s ease">
+      <div style="width:36px;height:4px;background:#e2e8f0;border-radius:2px;margin:0 auto 16px"></div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px">
+        <div class="avatar" style="width:42px;height:42px;font-size:17px">${currentUser.avatar}</div>
+        <div><div style="font-weight:700;font-size:15px">${currentUser.name}</div><div style="font-size:12px;color:#94a3b8">${currentUser.role==='admin'?'Administrator':'Kassir'}</div></div>
+        <button onclick="toggleDark()" style="margin-left:auto;background:#fff;border:1.5px solid #e2e8f0;cursor:pointer;color:#64748b;display:flex;padding:8px;border-radius:10px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        </button>
+      </div>
+      <div style="font-size:12px;font-weight:700;color:#94a3b8;text-transform:uppercase;margin:4px 0 10px">Asosiy menyu</div>
+      ${items}
+      <div class="mob-menu-item" style="background:#fef2f2;color:#ef4444;margin-top:10px" onclick="doLogout()">
+        <div class="mob-menu-icon" style="background:#fee2e2;color:#ef4444"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></div>
+        <span style="font-weight:600;font-size:14px;color:#ef4444">Chiqish</span>
+      </div>
+    </div>`;
+  el.classList.remove('hidden');
+  el.style.display='flex';
+}
+function closeMobileMenu(){
+  const el=document.getElementById('mobile-menu-overlay');
+  if(el)el.style.display='none';
 }
 
 // ===== LOADING =====
@@ -919,6 +1048,8 @@ function goPage(page){
   if(page!=='users'&&page!=='dashboard'&&page!=='chat'&&page!=='debts'&&!hasPerm(page))return;
   if(page!=='chat') chatOnPage=false;
   document.querySelectorAll('.nav-item').forEach(el=>el.classList.toggle('active',el.dataset.page===page));
+  document.querySelectorAll('.mtab-btn').forEach(el=>el.classList.toggle('active',el.dataset.mpage===page));
+  closeMobileMenu();
   document.getElementById('page-title').textContent=pageTitles[page]||'';
   const content=document.getElementById('page-content');
   content.style.animation='none';
@@ -945,7 +1076,7 @@ function openModal(title,html,width=500){
   document.getElementById('modal-box').style.maxWidth=width+'px';
   document.getElementById('modal-overlay').classList.remove('hidden');
 }
-function closeModal(){document.getElementById('modal-overlay').classList.add('hidden');}
+function closeModal(){document.getElementById('modal-overlay').classList.add('hidden');if(typeof stopQrStream==='function')stopQrStream();}
 function closeModalOverlay(e){if(e.target===document.getElementById('modal-overlay'))closeModal();}
 
 // ===== REVENUE HELPERS =====
@@ -1032,7 +1163,21 @@ function renderDashboard(fromDate='',toDate=''){
   }).join('');
 
   document.getElementById('page-content').innerHTML=`
-    <div class="card" style="margin-bottom:16px;padding:14px">
+    <div class="mob-hero mobile-only">
+      <div>
+        <div style="font-size:13px;opacity:.8">Xush kelibsiz,</div>
+        <div style="font-size:21px;font-weight:800;margin:2px 0">${currentUser.name}</div>
+        <div style="font-size:12px;opacity:.7">${currentUser.role==='admin'?'Administrator':'Kassir'}</div>
+      </div>
+      <div class="mob-hero-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
+    </div>
+    <div class="stat-grid mobile-only" style="margin-bottom:18px">
+      <div class="mob-stat-card"><div class="mob-stat-icon" style="background:#6366f118;color:#6366f1"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/></svg></div><div style="font-size:12px;color:#94a3b8">Mahsulotlar</div><div style="font-size:21px;font-weight:800">${products.length}</div><div style="font-size:11px;color:#94a3b8">Jami</div></div>
+      <div class="mob-stat-card"><div class="mob-stat-icon" style="background:#22c55e18;color:#22c55e"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div><div style="font-size:12px;color:#94a3b8">Buyurtmalar</div><div style="font-size:21px;font-weight:800">${toOrders.length}</div><div style="font-size:11px;color:#94a3b8">${label}</div></div>
+      <div class="mob-stat-card"><div class="mob-stat-icon" style="background:#f59e0b18;color:#f59e0b"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg></div><div style="font-size:12px;color:#94a3b8">Ombor</div><div style="font-size:21px;font-weight:800">${products.reduce((s,p)=>s+p.stock,0)}</div><div style="font-size:11px;color:#94a3b8">Jami dona</div></div>
+      <div class="mob-stat-card"><div class="mob-stat-icon" style="background:#ef444418;color:#ef4444"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div><div style="font-size:12px;color:#94a3b8">Qarzdorlar</div><div style="font-size:21px;font-weight:800">${debts.filter(d=>d.status==='open').length}</div><div style="font-size:11px;color:#94a3b8">Ochiq</div></div>
+    </div>
+    <div class="card" style="margin-bottom:16px;padding:14px" class="desktop-only">
       <div class="flex gap-10 items-center wrap">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:#6366f1"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
         <span style="font-size:13px;font-weight:600;color:#475569">Sana filtr:</span>
@@ -1043,7 +1188,7 @@ function renderDashboard(fromDate='',toDate=''){
         <span class="badge badge-blue" style="margin-left:auto">${label}: ${toOrders.length} ta sotuv</span>
       </div>
     </div>
-    <div class="stat-grid">
+    <div class="stat-grid desktop-only">
       <div class="stat-card" style="border-color:#6366f1"><div class="stat-card-header"><span class="stat-card-title">${label} tushum</span><div class="stat-icon" style="background:#6366f120;color:#6366f1"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg></div></div><div class="stat-value">${fmt(toRev)}</div><div class="stat-sub">${toOrders.length} ta sotuv · Savdo: ${fmt(toSaleSum)}</div></div>
       <div class="stat-card" style="border-color:#22c55e"><div class="stat-card-header"><span class="stat-card-title">${label} sotuv</span><div class="stat-icon" style="background:#22c55e20;color:#22c55e"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div></div><div class="stat-value">${toOrders.length} ta</div><div class="stat-sub">Kassa orqali</div></div>
       <div class="stat-card" style="border-color:#f59e0b"><div class="stat-card-header"><span class="stat-card-title">Harajatlar</span><div class="stat-icon" style="background:#f59e0b20;color:#f59e0b"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div></div><div class="stat-value">${fmt(toExp)}</div><div class="stat-sub">${label}</div></div>
@@ -1056,8 +1201,8 @@ function renderDashboard(fromDate='',toDate=''){
     </div>
     ${lowHtml}
     <div class="card"><div class="card-title" style="margin-bottom:16px">So'nggi buyurtmalar</div>
-      <table><thead><tr><th>ID</th><th>Sana</th><th>Kassir</th><th>Mahsulotlar</th><th>To'lov</th><th>Summa</th></tr></thead>
-      <tbody>${recentOrders||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8">Ma\'lumot yo\'q</td></tr>'}</tbody></table></div>`;
+      <div style="overflow:auto"><table><thead><tr><th>ID</th><th>Sana</th><th>Kassir</th><th>Mahsulotlar</th><th>To'lov</th><th>Summa</th></tr></thead>
+      <tbody>${recentOrders||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8">Ma\'lumot yo\'q</td></tr>'}</tbody></table></div></div>`;
 }
 
 // ===== CASHIER =====
@@ -1070,6 +1215,9 @@ function renderCashier(){
             <div class="form-label" style="display:flex;align-items:center;gap:6px;margin-bottom:6px">${svgIcon('barcode',14)} Mahsulot ID</div>
             <div class="flex gap-8">
               <input id="id-input" class="form-input" placeholder="ID kiriting (Enter)" style="flex:1" onkeydown="if(event.key==='Enter')addToCart(true)" oninput="autoCheckIdMatch(this)" />
+              <button class="btn btn-outline btn-md" onclick="openQrScanner()" title="Kamera orqali QR skanerlash" style="padding:10px 14px">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h3l2-3h6l2 3h3a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              </button>
               <button class="btn btn-primary btn-md" onclick="addToCart()">${svgIcon('barcode',16)} Qo'shish</button>
             </div>
           </div>
@@ -1264,6 +1412,91 @@ function autoCheckIdMatch(inp){
       }
     },120);
   }
+}
+
+// ===== QR KAMERA SKANER (mobil/desktop kamera orqali QR o'qish) =====
+let _qrStream=null;
+let _qrAnimFrame=null;
+
+async function openQrScanner(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    toast('Bu qurilma/brauzer kamerani qo\'llamaydi!','error');
+    return;
+  }
+  openModal('QR kod skanerlash',`
+    <div style="position:relative;border-radius:14px;overflow:hidden;background:#000;aspect-ratio:1/1;max-width:360px;margin:0 auto">
+      <video id="qr-video" playsinline autoplay muted style="width:100%;height:100%;object-fit:cover"></video>
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none">
+        <div style="width:70%;height:70%;border:3px solid #6366f1;border-radius:16px;box-shadow:0 0 0 9999px rgba(0,0,0,.35)"></div>
+      </div>
+      <canvas id="qr-canvas" style="display:none"></canvas>
+    </div>
+    <div id="qr-status" style="text-align:center;margin-top:14px;font-size:13px;color:#64748b">Kamerani QR kodga qarating...</div>
+    <button class="btn btn-ghost btn-md w-full" style="justify-content:center;margin-top:12px" onclick="closeQrScanner()">Yopish</button>
+  `,400);
+  try{
+    _qrStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
+    const video=document.getElementById('qr-video');
+    if(!video){stopQrStream();return;}
+    video.srcObject=_qrStream;
+    await video.play();
+    scanQrFrame();
+  }catch(e){
+    console.error('Camera error:',e);
+    const st=document.getElementById('qr-status');
+    if(st){st.textContent='Kameraga ruxsat berilmadi yoki kamera topilmadi.';st.style.color='#ef4444';}
+  }
+}
+
+function scanQrFrame(){
+  const video=document.getElementById('qr-video');
+  const canvas=document.getElementById('qr-canvas');
+  if(!video||!canvas||!_qrStream){return;}
+  if(video.readyState===video.HAVE_ENOUGH_DATA){
+    canvas.width=video.videoWidth;
+    canvas.height=video.videoHeight;
+    const ctx=canvas.getContext('2d');
+    ctx.drawImage(video,0,0,canvas.width,canvas.height);
+    try{
+      const imgData=ctx.getImageData(0,0,canvas.width,canvas.height);
+      if(typeof jsQR==='function'){
+        const code=jsQR(imgData.data,imgData.width,imgData.height);
+        if(code&&code.data){
+          onQrDetected(code.data);
+          return;
+        }
+      }
+    }catch(e){}
+  }
+  _qrAnimFrame=requestAnimationFrame(scanQrFrame);
+}
+
+function onQrDetected(text){
+  playBeep('success');
+  const st=document.getElementById('qr-status');
+  if(st){st.textContent='Topildi: '+text;st.style.color='#16a34a';}
+  const inp=document.getElementById('id-input');
+  if(inp){
+    inp.value=text.trim();
+  }
+  stopQrStream();
+  setTimeout(()=>{
+    closeModal();
+    addToCart();
+  },350);
+}
+
+function stopQrStream(){
+  if(_qrAnimFrame){cancelAnimationFrame(_qrAnimFrame);_qrAnimFrame=null;}
+  if(_qrStream){
+    _qrStream.getTracks().forEach(t=>t.stop());
+    _qrStream=null;
+  }
+}
+
+function closeQrScanner(){
+  stopQrStream();
+  closeModal();
 }
 
 function addToCart(autoTrigger=false){
