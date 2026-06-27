@@ -499,18 +499,42 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbwY0v6hVaj77_Deiw3-f_uZ
 
 async function gasCall(action, payload={}) {
   if (!GAS_URL) throw new Error('GAS_URL sozlanmagan');
-  const formData = new FormData();
-  formData.append('action', action);
-  formData.append('payload', JSON.stringify(payload));
-  const res = await fetch(GAS_URL, { method: 'POST', body: formData, redirect: 'follow' });
-  const text = await res.text();
-  if (text.trim().startsWith('<')) {
-    console.error('GAS HTML response:', text.slice(0,200));
-    throw new Error('GAS noto\'g\'ri javob qaytardi. Deploy sozlamalarini tekshiring.');
+
+  // Apps Script bilan ishlash uchun eng ishonchli usul:
+  // Kichik so'rovlar uchun GET, katta ma'lumotlar uchun POST
+  const payloadStr = JSON.stringify(payload);
+  const isSmall = payloadStr.length < 1500;
+
+  let text;
+  try {
+    if (isSmall && ['login','loadAll','getMeta','getOnline','getChat'].includes(action)) {
+      // GET so'rovi — redirect muammosi yo'q
+      const url = GAS_URL + '?action=' + encodeURIComponent(action) +
+                  '&payload=' + encodeURIComponent(payloadStr);
+      const res = await fetch(url, { method: 'GET', redirect: 'follow' });
+      text = await res.text();
+    } else {
+      // POST so'rovi FormData bilan
+      const formData = new FormData();
+      formData.append('action', action);
+      formData.append('payload', payloadStr);
+      const res = await fetch(GAS_URL, { method: 'POST', body: formData, redirect: 'follow' });
+      text = await res.text();
+    }
+  } catch(netErr) {
+    throw new Error('Tarmoq xatosi: ' + netErr.message + '. Internet aloqasini tekshiring.');
   }
+
+  // HTML javob = deploy muammo
+  const trimmed = text.trim();
+  if (trimmed.startsWith('<') || trimmed.startsWith('<!')) {
+    console.error('GAS HTML response:', text.slice(0, 300));
+    throw new Error('Apps Script deploy sozlamalarini tekshiring: Execute as "Me", Access "Anyone"');
+  }
+
   let json;
   try { json = JSON.parse(text); }
-  catch(e) { throw new Error('GAS javob JSON emas: ' + text.slice(0,100)); }
+  catch(e) { throw new Error('GAS javob JSON emas: ' + text.slice(0, 100)); }
   if (!json.ok) throw new Error(json.error || 'GAS xatosi');
   return json.data;
 }
@@ -642,7 +666,21 @@ let returnOrderId = null;
 // ===== PERMISSIONS =====
 function hasPerm(key){
   if(!currentUser)return false;
-  if(currentUser.role==='admin')return true;
+  // Admin roli (asosiy yoki qo'shimcha) — to'liq ruxsat
+  const roles=currentUser.roles||[currentUser.role];
+  if(roles.includes('admin'))return true;
+  // Rol bo'yicha avtomatik ruxsatlar
+  const rolePerms={
+    cashier:   ['dashboard','cashier','orders'],
+    warehouse: ['dashboard','warehouse','inventory','warehouse_add','warehouse_bulk','warehouse_edit'],
+    supplier:  ['dashboard','warehouse'],
+    accountant:['dashboard','operations','orders','debts'],
+    viewer:    ['dashboard'],
+  };
+  for(const r of roles){
+    if((rolePerms[r]||[]).includes(key))return true;
+  }
+  // Individual ruxsatlar
   const p=currentUser.perms||{};
   return !!p[key];
 }
@@ -1039,8 +1077,9 @@ function startApp(){
   document.getElementById('login-page').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('topbar-name').textContent=currentUser.name;
-  const roleLabels={admin:'Administrator',cashier:'Kassir',supplier:'Yetkazuvchi'};
-  document.getElementById('topbar-role').textContent=roleLabels[currentUser.role]||'Foydalanuvchi';
+  const roleLabels={admin:'Administrator',cashier:'Kassir',supplier:'Yetkazuvchi',warehouse:'Omborchi',accountant:'Hisob-kitob',viewer:'Kuzatuvchi'};
+  const userRoles=currentUser.roles||[currentUser.role];
+  document.getElementById('topbar-role').textContent=userRoles.map(r=>roleLabels[r]||r).join(' + ');
   const topAv=document.getElementById('topbar-avatar');
   if(topAv){
     if(currentUser.avatarUrl){
@@ -5049,7 +5088,12 @@ function renderUsers(){
         </div>
       </div>
       <div class="flex wrap gap-8" style="margin-bottom:10px">
-        ${badge(u.role==='admin'?'Administrator':'Kassir',u.role==='admin'?'purple':'blue')}
+        ${(()=>{
+          const roleLabels={admin:'Administrator',cashier:'Kassir',supplier:'Yetkazuvchi',warehouse:'Omborchi',accountant:'Hisob-kitob',viewer:'Kuzatuvchi'};
+          const roleColors={admin:'purple',cashier:'blue',supplier:'blue',warehouse:'green',accountant:'yellow',viewer:'gray'};
+          const userRoles=u.roles||[u.role];
+          return userRoles.map(r=>badge(roleLabels[r]||r, roleColors[r]||'gray')).join(' ');
+        })()}
         ${u.id===currentUser.id?badge('Siz','green'):''}
         ${u.mustChangePw?badge('Parol kutilmoqda','yellow'):''}
       </div>
@@ -5131,19 +5175,40 @@ function openUserModal(uid){
     <div class="form-group"><label class="form-label">Login</label><input id="u-login" class="form-input" value="${u?u.login:''}" placeholder="login" ${uid?'disabled':''} /></div>
     <div class="form-group"><label class="form-label">Parol</label><div class="input-wrap"><input id="u-pass" class="form-input" type="password" value="${u?u.password:''}" placeholder="••••••••" style="padding-right:40px" /><button class="input-pw-btn" onclick="togglePw('u-pass',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div>
     <div class="form-group">
-      <label class="form-label">Rol</label>
-      <div class="flex gap-10">
-        <button id="role-admin" onclick="selectRole('admin')" style="flex:1;padding:10px;border-radius:10px;border:2px solid ${(u||{}).role==='admin'?'#7c3aed':'rgba(255,255,255,.1)'};background:${(u||{}).role==='admin'?'rgba(124,58,237,.15)':'var(--glass)'};cursor:pointer;font-size:12px;font-weight:600;color:${(u||{}).role==='admin'?'#c4b5fd':'var(--text2)'};display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit">${svgIcon('shield',14)} Admin</button>
-        <button id="role-cashier" onclick="selectRole('cashier')" style="flex:1;padding:10px;border-radius:10px;border:2px solid ${(!u||(u||{}).role==='cashier')?'#2563eb':'rgba(255,255,255,.1)'};background:${(!u||(u||{}).role==='cashier')?'rgba(37,99,235,.15)':'var(--glass)'};cursor:pointer;font-size:12px;font-weight:600;color:${(!u||(u||{}).role==='cashier')?'#93c5fd':'var(--text2)'};display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit">${svgIcon('users',14)} Kassir</button>
-        <button id="role-supplier" onclick="selectRole('supplier')" style="flex:1;padding:10px;border-radius:10px;border:2px solid ${(u||{}).role==='supplier'?'#0ea5e9':'rgba(255,255,255,.1)'};background:${(u||{}).role==='supplier'?'rgba(14,165,233,.15)':'var(--glass)'};cursor:pointer;font-size:12px;font-weight:600;color:${(u||{}).role==='supplier'?'#38bdf8':'var(--text2)'};display:flex;align-items:center;justify-content:center;gap:6px;font-family:inherit">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13"/><polygon points="16,8 20,8 23,11 23,16 16,16 16,8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
-          Yetkazuvchi
-        </button>
+      <label class="form-label">Rol <span style="font-size:11px;color:var(--text3);font-weight:400">(bir nechta tanlash mumkin)</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+        ${[
+          {id:'admin',   label:'Admin',       color:'#7c3aed', bg:'rgba(124,58,237,.15)', icon:'<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>'},
+          {id:'cashier', label:'Kassir',      color:'#2563eb', bg:'rgba(37,99,235,.15)',  icon:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>'},
+          {id:'supplier',label:'Yetkazuvchi', color:'#0ea5e9', bg:'rgba(14,165,233,.15)', icon:'<rect x="1" y="3" width="15" height="13"/><polygon points="16,8 20,8 23,11 23,16 16,16 16,8"/>'},
+          {id:'warehouse',label:'Omborchi',   color:'#10b981', bg:'rgba(16,185,129,.15)', icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>'},
+          {id:'accountant',label:"Hisob-kitob",color:'#f59e0b',bg:'rgba(245,158,11,.15)', icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>'},
+          {id:'viewer',  label:'Kuzatuvchi',  color:'#64748b', bg:'rgba(100,116,139,.15)',icon:'<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>'},
+        ].map(r=>{
+          const userRoles=u?(u.roles||[u.role]):[];
+          const isSelected=userRoles.includes(r.id)||(!u&&r.id==='cashier');
+          return`<button type="button" id="role-cb-${r.id}" onclick="toggleRoleCb('${r.id}')"
+            style="padding:10px 8px;border-radius:10px;border:2px solid ${isSelected?r.color:'rgba(255,255,255,.1)'};
+            background:${isSelected?r.bg:'var(--glass)'};cursor:pointer;
+            font-size:11px;font-weight:600;color:${isSelected?r.color:'var(--text2)'};
+            display:flex;flex-direction:column;align-items:center;gap:5px;font-family:inherit;
+            transition:all .18s;position:relative" data-selected="${isSelected?'1':'0'}">
+            ${isSelected?`<span style="position:absolute;top:4px;right:4px;width:14px;height:14px;border-radius:50%;background:${r.color};display:flex;align-items:center;justify-content:center">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20,6 9,17 4,12"/></svg>
+            </span>`:''}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">${r.icon}</svg>
+            ${r.label}
+          </button>`;
+        }).join('')}
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">
+        💡 <b>Admin</b> tanlansa — barcha ruxsatlar avtomatik beriladi
       </div>
     </div>
     ${!uid?`<div class="warn-box">Yangi foydalanuvchi birinchi kirishda parolni o'zgartirishi talab qilinadi.</div>`:''}
-    <div class="flex gap-10"><button class="btn btn-primary btn-md" onclick="saveUser()">${svgIcon('check',16)} ${uid?'Saqlash':'Qo\'shish'}</button><button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button></div>`,480);
-  window._selectedRole=u?u.role:'cashier';
+    <div class="flex gap-10"><button class="btn btn-primary btn-md" onclick="saveUser()">${svgIcon('check',16)} ${uid?'Saqlash':'Qo\'shish'}</button><button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button></div>`,500);
+  // Tanlangan rollarni global saqlaymiz
+  window._selectedRoles = u?(u.roles||[u.role]):['cashier'];
 }
 
 function previewAvatar(inp){
@@ -5167,34 +5232,76 @@ function clearAvatar(){
   if(prev)prev.innerHTML=`<span style="font-size:22px;font-weight:800">${u?u.avatar:'?'}</span>`;
 }
 
-function selectRole(r){
-  window._selectedRole=r;
-  const styles={
-    admin:{active:['#7c3aed','rgba(124,58,237,.15)','#c4b5fd'],inactive:['rgba(255,255,255,.1)','var(--glass)','var(--text2)']},
-    cashier:{active:['#2563eb','rgba(37,99,235,.15)','#93c5fd'],inactive:['rgba(255,255,255,.1)','var(--glass)','var(--text2)']},
-    supplier:{active:['#0ea5e9','rgba(14,165,233,.15)','#38bdf8'],inactive:['rgba(255,255,255,.1)','var(--glass)','var(--text2)']},
+function toggleRoleCb(roleId){
+  if(!window._selectedRoles) window._selectedRoles=[];
+  const roleColors={
+    admin:{color:'#7c3aed',bg:'rgba(124,58,237,.15)'},
+    cashier:{color:'#2563eb',bg:'rgba(37,99,235,.15)'},
+    supplier:{color:'#0ea5e9',bg:'rgba(14,165,233,.15)'},
+    warehouse:{color:'#10b981',bg:'rgba(16,185,129,.15)'},
+    accountant:{color:'#f59e0b',bg:'rgba(245,158,11,.15)'},
+    viewer:{color:'#64748b',bg:'rgba(100,116,139,.15)'},
   };
-  ['admin','cashier','supplier'].forEach(role=>{
-    const el=document.getElementById('role-'+role);
-    if(!el)return;
-    const s=r===role?styles[role].active:styles[role].inactive;
-    el.style.borderColor=s[0];el.style.background=s[1];el.style.color=s[2];
-  });
+  const btn=document.getElementById('role-cb-'+roleId);
+  if(!btn)return;
+  const isNowSelected=btn.dataset.selected==='1';
+  if(isNowSelected){
+    // Oxirgi rolni olib tashlab bo'lmaydi
+    if(window._selectedRoles.length<=1){toast('Kamida 1 ta rol bo\'lishi kerak!','error');return;}
+    window._selectedRoles=window._selectedRoles.filter(r=>r!==roleId);
+    btn.dataset.selected='0';
+    const rc=roleColors[roleId]||{color:'var(--text2)',bg:'var(--glass)'};
+    btn.style.borderColor='rgba(255,255,255,.1)';
+    btn.style.background='var(--glass)';
+    btn.style.color='var(--text2)';
+    // Checkmark olib tashlash
+    const cm=btn.querySelector('span');if(cm)cm.remove();
+  } else {
+    window._selectedRoles.push(roleId);
+    btn.dataset.selected='1';
+    const rc=roleColors[roleId]||{color:'#6366f1',bg:'rgba(99,102,241,.15)'};
+    btn.style.borderColor=rc.color;
+    btn.style.background=rc.bg;
+    btn.style.color=rc.color;
+    // Checkmark qo'shish
+    const cm=document.createElement('span');
+    cm.style.cssText=`position:absolute;top:4px;right:4px;width:14px;height:14px;border-radius:50%;background:${rc.color};display:flex;align-items:center;justify-content:center`;
+    cm.innerHTML='<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3"><polyline points="20,6 9,17 4,12"/></svg>';
+    btn.appendChild(cm);
+  }
 }
+
+// Eski selectRole — backward compat
+function selectRole(r){ toggleRoleCb(r); }
 
 function saveUser(){
   const name=((document.getElementById('u-name')||{}).value||'').trim();
   const login=((document.getElementById('u-login')||{}).value||'').trim();
   const pass=((document.getElementById('u-pass')||{}).value||'').trim();
-  const role=window._selectedRole||'cashier';
   const avatarUrl=window._avatarData||null;
+
+  // Tanlangan rollar (array)
+  const roles=window._selectedRoles&&window._selectedRoles.length>0?window._selectedRoles:['cashier'];
+  // Asosiy rol: admin > supplier > warehouse > cashier > accountant > viewer
+  const rolePriority=['admin','supplier','warehouse','cashier','accountant','viewer'];
+  const primaryRole=rolePriority.find(r=>roles.includes(r))||roles[0];
+
   if(!name||!login||!pass){toast('Barcha maydonlarni to\'ldiring!','error');return;}
   if(!userEditId&&users.find(u=>u.login===login)){toast('Bu login allaqachon mavjud!','error');return;}
+
+  // Admin tanlansa — barcha ruxsatlar
+  const perms=primaryRole==='admin'?{...ADMIN_PERMS}:(roles.includes('admin')?{...ADMIN_PERMS}:undefined);
+
   if(userEditId){
-    users=users.map(u=>u.id===userEditId?{...u,name,password:pass,role,avatar:name.charAt(0).toUpperCase(),avatarUrl:avatarUrl!==undefined?avatarUrl:u.avatarUrl}:u);
+    users=users.map(u=>u.id===userEditId?{
+      ...u, name, password:pass,
+      role:primaryRole, roles,
+      avatar:name.charAt(0).toUpperCase(),
+      avatarUrl:avatarUrl!==undefined?avatarUrl:u.avatarUrl,
+      ...(perms?{perms}:{})
+    }:u);
     if(currentUser.id===userEditId){
-      currentUser={...currentUser,name,password:pass,role,avatar:name.charAt(0).toUpperCase(),avatarUrl};
-      // Topbar avatarni yangilash
+      currentUser={...currentUser,name,password:pass,role:primaryRole,roles,avatar:name.charAt(0).toUpperCase(),avatarUrl};
       const topAvatar=document.getElementById('topbar-avatar');
       if(topAvatar){
         if(avatarUrl){topAvatar.innerHTML=`<img src="${avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;}
@@ -5204,12 +5311,20 @@ function saveUser(){
     save();
     toast('Foydalanuvchi yangilandi!');
   } else {
-    users.push({id:Date.now(),name,login,password:pass,role,avatar:name.charAt(0).toUpperCase(),avatarUrl:avatarUrl||null,mustChangePw:true});
+    users.push({
+      id:Date.now(), name, login, password:pass,
+      role:primaryRole, roles,
+      avatar:name.charAt(0).toUpperCase(),
+      avatarUrl:avatarUrl||null,
+      mustChangePw:true,
+      perms:perms||{...DEFAULT_PERMS}
+    });
     save();
     toast('Foydalanuvchi qo\'shildi!');
   }
   window._avatarData=undefined;
-  closeModal();renderUsers();
+  window._selectedRoles=null;
+  closeModal(); renderUsers();
 }
 
 function deleteUser(uid){
