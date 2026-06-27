@@ -490,7 +490,12 @@ const DEFAULT_EXP_CATS = ['Ijara','Elektr','Sув','Ish haqi','Transport','Oziq-
 // ============================================================
 //  GAS API LAYER — fetch() orqali (GitHub Pages dan tashqi API chaqirish)
 // ============================================================
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxRjl0FvZm2iUTWkTNHQsL9VWmTPWtmKtohAEW98RF92tEOXZEk9oGzsbnbin1wKqtpFg/exec';
+// ============================================================
+//  ⚙️  SOZLASH — Apps Script URL ni shu yerga yozing
+//  (Apps Script deploy qilgandan keyin olingan URL)
+// ============================================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbwY0v6hVaj77_Deiw3-f_uZDQpm5KhEs3NjXr4VWusdZdHC5_vYDKRAHCjPwmRfCLU/exec';
+// ============================================================
 
 async function gasCall(action, payload={}) {
   if (!GAS_URL) throw new Error('GAS_URL sozlanmagan');
