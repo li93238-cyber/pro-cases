@@ -4948,14 +4948,20 @@ function showAnalyticsTab(tab){
   const periodLabel=fromVal||toVal?(fromVal+' → '+toVal):'Barcha vaqt';
 
   if(tab==='rating'){
-    // Mahsulot sotuv reytingi
+    // Mahsulot sotuv reytingi — qaytarilgan mahsulotlar hisoblanmaydi
     const productSales={};
     filtOrders.forEach(o=>{
+      const returned=o.returnedItems||[];
       (o.items||[]).forEach(item=>{
-        if(!productSales[item.pid]){productSales[item.pid]={pid:item.pid,name:item.name,qty:0,revenue:0,orders:0};}
-        productSales[item.pid].qty+=item.qty;
-        productSales[item.pid].revenue+=item.price*item.qty;
+        // Qaytarilgan miqdorni topamiz
+        const retQty=returned.filter(r=>r.pid===item.pid).reduce((s,r)=>s+r.qty,0);
+        const netQty=item.qty-retQty;
+        if(netQty<=0)return; // to'liq qaytarilgan — hisoblamaymiz
+        if(!productSales[item.pid]){productSales[item.pid]={pid:item.pid,name:item.name,qty:0,revenue:0,orders:0,returned:0};}
+        productSales[item.pid].qty+=netQty;
+        productSales[item.pid].revenue+=item.price*netQty;
         productSales[item.pid].orders++;
+        if(retQty>0)productSales[item.pid].returned+=retQty;
       });
     });
     const sorted=Object.values(productSales).sort((a,b)=>b.qty-a.qty);
@@ -4969,7 +4975,7 @@ function showAnalyticsTab(tab){
             <div style="flex:1;height:8px;background:var(--glass);border-radius:4px;overflow:hidden">
               <div style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;width:${Math.round(p.qty/maxQty*100)}%"></div>
             </div>
-            <span style="font-weight:700;min-width:40px">${p.qty} ta</span>
+            <span style="font-weight:700;min-width:40px">${p.qty} ta${p.returned>0?`<span style="font-size:10px;color:#f87171;margin-left:4px">(-${p.returned})</span>`:''}</span>
           </div>
         </td>
         <td style="font-weight:700;color:var(--accent2)">${fmt(p.revenue)}</td>
@@ -4988,12 +4994,17 @@ function showAnalyticsTab(tab){
   }
 
   else if(tab==='cashier'){
-    // Kassir samaradorligi
+    // Kassir samaradorligi — qaytarilgan summalar chiqariladi
     const cashierStats={};
     filtOrders.forEach(o=>{
-      if(!cashierStats[o.cashier]){cashierStats[o.cashier]={name:o.cashier,orders:0,revenue:0,avgCheck:0};}
+      const retAmt=(o.returnedItems||[]).reduce((s,r)=>s+r.price*r.qty,0);
+      const netTotal=o.total-retAmt;
+      const allReturned=retAmt>0&&(o.returnedItems||[]).length>0&&o.items.every(item=>(o.returnedItems||[]).filter(r=>r.pid===item.pid).reduce((s,r)=>s+r.qty,0)>=item.qty);
+      if(allReturned)return; // to'liq qaytarilgan buyurtma — hisoblamaymiz
+      if(!cashierStats[o.cashier]){cashierStats[o.cashier]={name:o.cashier,orders:0,revenue:0,returned:0,avgCheck:0};}
       cashierStats[o.cashier].orders++;
-      cashierStats[o.cashier].revenue+=o.total;
+      cashierStats[o.cashier].revenue+=netTotal;
+      if(retAmt>0)cashierStats[o.cashier].returned+=retAmt;
     });
     Object.values(cashierStats).forEach(c=>{c.avgCheck=c.orders?Math.round(c.revenue/c.orders):0;});
     const sorted=Object.values(cashierStats).sort((a,b)=>b.revenue-a.revenue);
@@ -5002,7 +5013,7 @@ function showAnalyticsTab(tab){
         <td style="font-weight:700;color:var(--text3)">${i+1}</td>
         <td style="font-weight:600">${c.name}</td>
         <td style="font-weight:700;text-align:center">${c.orders}</td>
-        <td style="font-weight:700;color:var(--accent2)">${fmt(c.revenue)}</td>
+        <td style="font-weight:700;color:var(--accent2)">${fmt(c.revenue)}${c.returned>0?`<div style="font-size:11px;color:#f87171">-${fmt(c.returned)} qaytarilgan</div>`:''}</td>
         <td style="color:var(--text2)">${fmt(c.avgCheck)}</td>
       </tr>`).join('');
     box.innerHTML=`<div class="card">
@@ -5016,14 +5027,18 @@ function showAnalyticsTab(tab){
     // Foyda marginali
     const prodStats={};
     filtOrders.forEach(o=>{
+      const returned=o.returnedItems||[];
       (o.items||[]).forEach(item=>{
         const p=products.find(x=>x.id===item.pid);
         if(!p)return;
+        const retQty=returned.filter(r=>r.pid===item.pid).reduce((s,r)=>s+r.qty,0);
+        const netQty=item.qty-retQty;
+        if(netQty<=0)return; // to'liq qaytarilgan
         const costP=p.cost&&p.cost>0?p.cost:0;
         if(!prodStats[item.pid]){prodStats[item.pid]={pid:item.pid,name:item.name,cost:costP,price:p.price,qty:0,revenue:0,profit:0,hasCost:costP>0};}
-        prodStats[item.pid].qty+=item.qty;
-        prodStats[item.pid].revenue+=item.price*item.qty;
-        if(costP>0)prodStats[item.pid].profit+=(item.price-costP)*item.qty;
+        prodStats[item.pid].qty+=netQty;
+        prodStats[item.pid].revenue+=item.price*netQty;
+        if(costP>0)prodStats[item.pid].profit+=(item.price-costP)*netQty;
       });
     });
     const sorted=Object.values(prodStats).sort((a,b)=>b.profit-a.profit);
