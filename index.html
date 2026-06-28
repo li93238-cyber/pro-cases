@@ -33,7 +33,7 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 @keyframes glowPulse{0%,100%{box-shadow:0 0 12px rgba(99,102,241,.3)}50%{box-shadow:0 0 24px rgba(99,102,241,.6)}}
 .app{display:flex;min-height:100vh}
 .main{flex:1;display:flex;flex-direction:column;min-width:0}
-.sidebar{width:240px;min-height:100vh;background:rgba(7,7,26,.85);backdrop-filter:blur(20px);border-right:1px solid var(--glass-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;flex-shrink:0;transition:width .3s}
+.sidebar{width:240px;min-height:100vh;background:rgba(7,7,26,.85);backdrop-filter:blur(20px);border-right:1px solid var(--glass-border);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;flex-shrink:0;transition:width .3s;overflow:hidden}
 .sidebar.collapsed{width:68px}
 .sidebar-logo{padding:20px 16px;display:flex;align-items:center;gap:12px;border-bottom:1px solid var(--glass-border)}
 .logo-icon{width:36px;height:36px;border-radius:10px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:16px;flex-shrink:0;box-shadow:0 4px 14px rgba(99,102,241,.4)}
@@ -44,7 +44,10 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 .nav-item.active{background:linear-gradient(135deg,rgba(99,102,241,.3),rgba(129,140,248,.15));color:#fff;border:1px solid rgba(99,102,241,.35);box-shadow:0 4px 16px rgba(99,102,241,.2),inset 0 1px 0 rgba(255,255,255,.06)}
 .nav-item:active{transform:scale(.97)}
 .nav-item span.label{white-space:nowrap;overflow:hidden}
-.sidebar-bottom{padding:10px 8px;border-top:1px solid var(--glass-border)}
+.sidebar-bottom{padding:10px 8px;border-top:1px solid var(--glass-border);flex-shrink:0}
+.sidebar .nav{overflow-y:auto;overflow-x:hidden}
+.sidebar .nav::-webkit-scrollbar{width:3px}
+.sidebar .nav::-webkit-scrollbar-thumb{background:rgba(99,102,241,.3);border-radius:2px}
 .topbar{background:rgba(7,7,26,.8);backdrop-filter:blur(16px);border-bottom:1px solid var(--glass-border);padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
 .topbar-left{display:flex;align-items:center;gap:12px}
 .topbar-title{font-size:17px;font-weight:700;color:#f1f5f9}
@@ -262,6 +265,9 @@ body.theme-light .overlay{background:rgba(0,0,0,.4)}
 body.theme-light .modal-header{border-bottom-color:#e2e8f0}
 body.theme-light .divider{background:#e2e8f0}
 
+
+/* Warehouse sticky toolbar */
+.wh-sticky-toolbar{position:sticky;top:58px;z-index:50;background:var(--bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--glass-border);padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 /* ===== NAV DRAG-AND-DROP ===== */
 .nav-item.dragging{opacity:.4;transform:scale(.97)}
 .nav-item.drag-over{border-top:2px solid var(--accent);margin-top:-1px}
@@ -541,12 +547,25 @@ async function gasCall(action, payload={}) {
 
 // Local cache
 function lsGet(key, def) {
-  if (!window._gasData) return def;
-  return window._gasData[key] !== undefined ? window._gasData[key] : def;
+  // 1. Avval xotirada (tezkor)
+  if (window._gasData && window._gasData[key] !== undefined) return window._gasData[key];
+  // 2. localStorage dan (sahifa qayta yuklanganda)
+  try {
+    const raw = localStorage.getItem('pos_cache_'+key);
+    if (raw !== null) {
+      const val = JSON.parse(raw);
+      if (!window._gasData) window._gasData = {};
+      window._gasData[key] = val; // xotiraga ham yozamiz
+      return val;
+    }
+  } catch(e) {}
+  return def;
 }
 function lsSet(key, val) {
   if (!window._gasData) window._gasData = {};
   window._gasData[key] = val;
+  // localStorage ga ham saqlaymiz — ishonchli backup
+  try { localStorage.setItem('pos_cache_'+key, JSON.stringify(val)); } catch(e) {}
 }
 
 let users     = DEFAULT_USERS;
@@ -562,9 +581,19 @@ let smenas    = []; // [{id, openTime, openBy, closeTime, closeBy, faktual, diff
 let debts     = []; // [{id, customerName, phone, workplace, amount, paidAmount, note, items, date, by, status, smenaId, paidDate}]
 let damages   = []; // [{id, pid, name, amount, note, date, by, smenaId}]
 let importHistory = []; // [{id, date, by, items:[{pid,name,qty,cost,price}], source}]
-let purchaseOrders = []; // [{id, date, by, supplier, items:[{pid,name,qty,cost}], status:'pending'|'received'|'partial', note, expectedDate, receivedDate}]
+let purchaseOrders = []; // [{id, date, by, supplier, items:[{pid,name,qty,cost}], status, note, expectedDate, receivedDate}]
 let partners = []; // [{id, name, phone, type, note, balance, transactions}]
 let branches = []; // [{id, name, address, phone, managerId, staffIds:[], active:true, note}]
+let auditLog  = []; // [{id,date,by,action,details,page}]
+let loyaltyCards = []; // [{id,cardNo,customerName,phone,discount,totalSpent,createdAt}]
+let bankAccounts = []; // [{id,name,balance,transactions:[{id,date,amount,type,desc}]}]
+let appSettings = {
+  companyName:'Pro Cases', companyAddress:'', companyPhone:'', companyLogo:'',
+  receiptFooter:"Xaridingiz uchun rahmat!", language:'uz', lowStockThreshold:10,
+  budgets:{}, // {catName: monthlyLimit}
+  giftRules:[], // [{id,name,productId,buyQty,freeQty,active}]
+  bulkDiscounts:[], // [{id,category,minQty,discountPct,active}]
+};
 let payTypes  = [
   {id:'naqd',name:'Naqd',color:'#22c55e'},
   {id:'karta',name:'Karta',color:'#3b82f6'},
@@ -589,8 +618,10 @@ function save(sections=null) {
   lsSet('debts', debts); lsSet('damages', damages);
   lsSet('payTypes', payTypes); lsSet('importHistory', importHistory);
   lsSet('purchaseOrders', purchaseOrders); lsSet('partners', partners); lsSet('branches', branches);
+  lsSet('auditLog', auditLog); lsSet('loyaltyCards', loyaltyCards);
+  lsSet('bankAccounts', bankAccounts); lsSet('appSettings', appSettings);
 
-  const toSave = sections || ['users','products','orders','expenses','categories','inventories','priceHistory','expCats','smenas','meta','debts','damages','payTypes','importHistory','purchaseOrders','partners','branches'];
+  const toSave = sections || ['users','products','orders','expenses','categories','inventories','priceHistory','expCats','smenas','meta','debts','damages','payTypes','importHistory','purchaseOrders','partners','branches','auditLog','loyaltyCards','bankAccounts','appSettings'];
   toSave.forEach(s => { _savePending[s] = true; });
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(flushSave, 400);
@@ -617,6 +648,10 @@ async function flushSave() {
   if(pending.purchaseOrders)promises.push(gasCall('savePurchaseOrders', purchaseOrders));
   if(pending.partners)      promises.push(gasCall('savePartners', partners));
   if(pending.branches)      promises.push(gasCall('saveBranches', branches));
+  if(pending.auditLog)      promises.push(gasCall('saveAuditLog', auditLog));
+  if(pending.loyaltyCards)  promises.push(gasCall('saveLoyaltyCards', loyaltyCards));
+  if(pending.bankAccounts)  promises.push(gasCall('saveBankAccounts', bankAccounts));
+  if(pending.appSettings)   promises.push(gasCall('saveAppSettings', appSettings));
   if(pending.meta)          promises.push(gasCall('saveMeta', {currentSmenaId}));
   if(promises.length===0) return;
   try {
@@ -639,7 +674,7 @@ function showSyncIndicator(state) {
     el.style.color = '#16a34a';
     setTimeout(() => { if(el) el.innerHTML = ''; }, 2000);
   } else if (state === 'local') {
-    el.innerHTML = '📦 Lokal';
+    el.innerHTML = 'Oflayn';
     el.style.color = '#f59e0b';
     setTimeout(() => { if(el) el.innerHTML = ''; }, 2000);
   } else if (state === 'saving') {
@@ -723,6 +758,10 @@ const ALL_NAV_ITEMS=[
   {page:'debts',label:'Qarzlar',icon:'<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',adminOnly:false},
   {page:'partners',label:'Hamkorlar',icon:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',adminOnly:false},
   {page:'branches',label:'Filiallar',icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>',adminOnly:true},
+  {page:'analytics',label:'Analitika',icon:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',adminOnly:true},
+  {page:'loyalty',label:'Chegirma kartalar',icon:'<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',adminOnly:false},
+  {page:'bank',label:'Bank hisob',icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',adminOnly:true},
+  {page:'audit',label:'Audit log',icon:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/>',adminOnly:true},
   {page:'settings',label:'Sozlamalar',icon:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>',adminOnly:false},
 ];
 
@@ -882,21 +921,34 @@ window.addEventListener('DOMContentLoaded', async () => {
       try{
         const allData = await gasCall('loadAll');
         window._gasData = {};
-        users        = allData.users        || DEFAULT_USERS;
-        products     = allData.products     || DEFAULT_PRODUCTS;
-        orders       = allData.orders       || DEFAULT_ORDERS;
-        expenses     = allData.expenses     || DEFAULT_EXPENSES;
-        categories   = allData.categories   || DEFAULT_CATEGORIES;
-        expCats      = allData.expCats      || DEFAULT_EXP_CATS;
-        inventories  = allData.inventories  || [];
-        priceHistory = allData.priceHistory || [];
-        smenas       = allData.smenas       || [];
-        debts        = allData.debts        || [];
-        damages      = allData.damages      || [];
-        importHistory= allData.importHistory || [];
-        purchaseOrders= allData.purchaseOrders || [];
-        partners     = allData.partners     || [];
-        branches     = allData.branches     || [];
+        users        = allData.users        || lsGet('users', DEFAULT_USERS);
+        products     = allData.products     || lsGet('products', DEFAULT_PRODUCTS);
+        orders       = allData.orders       || lsGet('orders', DEFAULT_ORDERS);
+        expenses     = allData.expenses     || lsGet('expenses', DEFAULT_EXPENSES);
+        categories   = allData.categories   || lsGet('categories', DEFAULT_CATEGORIES);
+        expCats      = allData.expCats      || lsGet('expCats', DEFAULT_EXP_CATS);
+        inventories  = allData.inventories  || lsGet('inventories', []);
+        priceHistory = allData.priceHistory || lsGet('priceHistory', []);
+        smenas       = allData.smenas       || lsGet('smenas', []);
+        debts        = allData.debts        || lsGet('debts', []);
+        damages      = allData.damages      || lsGet('damages', []);
+        importHistory= allData.importHistory || lsGet('importHistory', []);
+        purchaseOrders= allData.purchaseOrders || lsGet('purchaseOrders', []);
+        partners     = allData.partners     || lsGet('partners', []);
+        branches     = allData.branches     || lsGet('branches', []);
+        auditLog     = allData.auditLog     || lsGet('auditLog', []);
+        loyaltyCards = allData.loyaltyCards || lsGet('loyaltyCards', []);
+        bankAccounts = allData.bankAccounts || lsGet('bankAccounts', []);
+        if(allData.appSettings) appSettings={...appSettings,...allData.appSettings};
+        payTypes=(allData.payTypes&&allData.payTypes.length)?allData.payTypes:payTypes;
+        // GAS dan kelgan ma'lumotlarni localStorage cache ga ham yozamiz
+        lsSet('users',users); lsSet('products',products); lsSet('orders',orders);
+        lsSet('expenses',expenses); lsSet('categories',categories); lsSet('expCats',expCats);
+        lsSet('inventories',inventories); lsSet('priceHistory',priceHistory); lsSet('smenas',smenas);
+        lsSet('debts',debts); lsSet('damages',damages); lsSet('importHistory',importHistory);
+        lsSet('purchaseOrders',purchaseOrders); lsSet('partners',partners); lsSet('branches',branches);
+        lsSet('auditLog',auditLog); lsSet('loyaltyCards',loyaltyCards); lsSet('bankAccounts',bankAccounts);
+        if(allData.appSettings) appSettings = {...appSettings, ...allData.appSettings};
         payTypes     = (allData.payTypes&&allData.payTypes.length) ? allData.payTypes : payTypes;
         const meta   = allData.meta || {};
         currentSmenaId = meta.currentSmenaId || null;
@@ -907,12 +959,27 @@ window.addEventListener('DOMContentLoaded', async () => {
           await gasCall('saveMeta', {currentSmenaId});
         }
       }catch(gasErr){
-        console.warn('GAS load failed, using defaults:', gasErr.message);
-        // GAS ishlamasa — DEFAULT ma'lumotlar bilan ishlaydi
-        if(!currentSmenaId){
-          currentSmenaId = 'SM-'+Date.now().toString(36).toUpperCase();
-          smenas.push({id:currentSmenaId, openTime:new Date().toISOString(), openBy:'Tizim', closed:false});
-        }
+        console.warn('GAS load failed, using localStorage cache:', gasErr.message);
+        // localStorage cache dan yuklaymiz
+        users        = lsGet('users', DEFAULT_USERS);
+        products     = lsGet('products', DEFAULT_PRODUCTS);
+        orders       = lsGet('orders', DEFAULT_ORDERS);
+        expenses     = lsGet('expenses', DEFAULT_EXPENSES);
+        categories   = lsGet('categories', DEFAULT_CATEGORIES);
+        expCats      = lsGet('expCats', DEFAULT_EXP_CATS);
+        inventories  = lsGet('inventories', []);
+        priceHistory = lsGet('priceHistory', []);
+        smenas       = lsGet('smenas', []);
+        debts        = lsGet('debts', []);
+        damages      = lsGet('damages', []);
+        importHistory= lsGet('importHistory', []);
+        purchaseOrders= lsGet('purchaseOrders', []);
+        partners     = lsGet('partners', []);
+        branches     = lsGet('branches', []);
+        auditLog     = lsGet('auditLog', []);
+        loyaltyCards = lsGet('loyaltyCards', []);
+        bankAccounts = lsGet('bankAccounts', []);
+        toast('Oflayn rejim — lokal cache ishlatilmoqda', 'error');
       }
     } else {
       if(!currentSmenaId){
@@ -1026,6 +1093,11 @@ async function doLogin(){
         partners=allData.partners||partners; branches=allData.branches||branches;
         payTypes=(allData.payTypes&&allData.payTypes.length)?allData.payTypes:payTypes;
         if((allData.meta||{}).currentSmenaId) currentSmenaId=allData.meta.currentSmenaId;
+        // localStorage cache ga ham yozamiz
+        lsSet('users',users); lsSet('products',products); lsSet('orders',orders);
+        lsSet('expenses',expenses); lsSet('smenas',smenas); lsSet('debts',debts);
+        lsSet('importHistory',importHistory); lsSet('purchaseOrders',purchaseOrders);
+        lsSet('partners',partners); lsSet('branches',branches);
       }catch(gasErr){
         // GAS ishlamasa — lokal foydalanuvchilardan qidirish
         console.warn('GAS login failed, trying local:', gasErr.message);
@@ -1267,7 +1339,7 @@ function skeletonStats(n=4){
 }
 
 // ===== NAVIGATION =====
-const pageTitles={dashboard:'Boshqaruv',cashier:'Kassa',orders:'Buyurtmalar',warehouse:'Ombor',inventory:'Inventarizatsiya',operations:'Kassa Amaliyot',users:'Foydalanuvchilar',chat:'Xabarlar',debts:'Qarzlar',settings:'Sozlamalar',partners:'Hamkorlar',branches:'Filiallar'};
+const pageTitles={dashboard:'Boshqaruv',cashier:'Kassa',orders:'Buyurtmalar',warehouse:'Ombor',inventory:'Inventarizatsiya',operations:'Kassa Amaliyot',users:'Foydalanuvchilar',chat:'Xabarlar',debts:'Qarzlar',settings:'Sozlamalar',partners:'Hamkorlar',branches:'Filiallar',analytics:'Analitika',loyalty:'Chegirma kartalar',bank:'Bank hisoblar',audit:'Audit log'};
 const isMobile=()=>window.innerWidth<=768;
 
 function goPage(page){
@@ -1304,6 +1376,10 @@ function goPage(page){
     case'settings':renderSettings();break;
     case'partners':renderPartners();break;
     case'branches':renderBranches();break;
+    case'analytics':renderAnalytics();break;
+    case'loyalty':renderLoyalty();break;
+    case'bank':renderBankAccounts();break;
+    case'audit':renderAuditLog();break;
   }
 }
 
@@ -1391,7 +1467,7 @@ function renderMobileDashboard(){
 
   const lowHtml=lowStock.length>0?`
     <div style="margin-bottom:14px">
-      <div class="mob-section-title">⚠️ Kam qolganlar</div>
+      <div class="mob-section-title">Kam qolganlar</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         ${lowStock.slice(0,8).map(p=>`<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.2);border-radius:8px;padding:5px 10px;font-size:11px;font-weight:600;color:#fbbf24">${p.name} · ${p.stock}ta</div>`).join('')}
       </div>
@@ -1410,10 +1486,10 @@ function renderMobileDashboard(){
         <div style="font-size:10px;opacity:.65">sotuv</div>
       </div>
     </div>
-    <div class="mob-section-title">📊 Statistika</div>
+    <div class="mob-section-title">Statistika</div>
     <div class="mob-stat-scroll">${stats}</div>
     ${lowHtml}
-    <div class="mob-section-title">🕐 So'nggi sotuvlar</div>
+    <div class="mob-section-title">So'nggi sotuvlar</div>
     ${recentList||'<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Sotuvlar yo\'q</div>'}
     <div style="height:10px"></div>`;
 }
@@ -1713,7 +1789,7 @@ function updateBranchSelector(){
   if(branches.length>0&&currentUser.role==='admin'){
     wrap.style.display='block';
     const opts=branches.map(b=>`<option value="${b.id}" ${currentBranchId===b.id?'selected':''}>${b.name}</option>`).join('');
-    sel.innerHTML=`<option value="" ${!currentBranchId?'selected':''}>🏢 Barcha filiallar</option>${opts}`;
+    sel.innerHTML=`<option value="" ${!currentBranchId?'selected':''}>Barcha filiallar</option>${opts}`;
   } else if(currentBranchId){
     // Xodim o'z filialiga biriktirilgan — ko'rsatish lekin o'zgartirib bo'lmaydi
     const b=branches.find(x=>x.id===currentBranchId);
@@ -1928,6 +2004,14 @@ function renderCashier(){
           <label class="form-label">Chegirma (%)</label>
           <input id="discount-input" type="number" min="0" max="100" value="0" class="form-input" oninput="updateSummary()" />
         </div>
+        ${loyaltyCards.length>0?`<div>
+          <label class="form-label">Chegirma karta</label>
+          <div style="display:flex;gap:8px">
+            <input id="loyalty-card-input" class="form-input" placeholder="Karta № yoki telefon" style="flex:1"/>
+            <button class="btn btn-outline btn-sm" onclick="applyLoyaltyCard()" style="white-space:nowrap">Qo'llash</button>
+          </div>
+          ${window._activeLoyalty?`<div style="font-size:12px;color:#4ade80;margin-top:4px">✓ ${window._activeLoyalty.customerName} — ${window._activeLoyalty.discount}% chegirma</div>`:''}
+        </div>`:''}
         <div>
           <div class="flex justify-between items-center" style="margin-bottom:4px">
             <label class="form-label" style="margin-bottom:0">To'lov turi</label>
@@ -2446,6 +2530,13 @@ function completeSell(total,da,partnerId,partnerNote){
     branchId:currentBranchId||null
   });
   products=products.map(p=>{const ci=cart.find(i=>i.pid===p.id);return ci?{...p,stock:p.stock-ci.qty}:p;});
+  // Loyalti karta yangilash
+  if(window._activeLoyalty){
+    loyaltyCards=loyaltyCards.map(c=>c.id===window._activeLoyalty.id?{...c,totalSpent:c.totalSpent+total}:c);
+    window._activeLoyalty=null;
+  }
+  // Audit log
+  addAudit('Sotuv', `${fmt(total)} — ${cart.length} mahsulot`,'Kassa');
   save();
   const receipt={id:oid,items:cart.map(i=>({...i})),total,discount:da,payType:currentPayType,date:new Date().toISOString(),cashier:currentUser.name,partnerId};
   cart=[];
@@ -2456,18 +2547,25 @@ function completeSell(total,da,partnerId,partnerNote){
 
 function showReceipt(r){
   const itemRows=r.items.map(i=>`<div class="receipt-row"><span>${i.name} x${i.qty}</span><span>${fmt(i.price*i.qty)}</span></div>`).join('');
+  const cName=appSettings.companyName||'PRO CASES';
+  const cAddr=appSettings.companyAddress?`<div style="font-size:11px;color:var(--text3)">${appSettings.companyAddress}</div>`:'';
+  const cPhone=appSettings.companyPhone?`<div style="font-size:11px;color:var(--text3)">${appSettings.companyPhone}</div>`:'';
+  const footer=appSettings.receiptFooter||'Xaridingiz uchun rahmat!';
   openModal('Chek',`
     <div class="receipt">
       <div class="receipt-header">
-        <div style="font-size:18px;font-weight:800">PRO CASES</div>
-        <div style="font-size:12px;color:#64748b">${fmtDate(r.date)}</div>
-        <div style="font-size:12px;color:#64748b">Chek: ${r.id}</div>
-        <div style="font-size:12px;color:#64748b">Kassir: ${r.cashier}</div>
+        ${appSettings.companyLogo?`<img src="${appSettings.companyLogo}" style="height:50px;margin:0 auto;display:block;margin-bottom:6px">`:''}
+        <div style="font-size:18px;font-weight:800;color:var(--text)">${cName}</div>
+        ${cAddr}${cPhone}
+        <div style="font-size:12px;color:var(--text3);margin-top:4px">${fmtDate(r.date)}</div>
+        <div style="font-size:12px;color:var(--text3)">Chek: ${r.id}</div>
+        <div style="font-size:12px;color:var(--text3)">Kassir: ${r.cashier}</div>
       </div>
       <div class="receipt-items">${itemRows}</div>
       ${r.discount>0?`<div class="receipt-row" style="color:#ef4444"><span>Chegirma:</span><span>-${fmt(r.discount)}</span></div>`:''}
-      <div class="receipt-row" style="font-size:16px;font-weight:800;margin-top:8px"><span>JAMI:</span><span>${fmt(r.total)}</span></div>
-      <div style="text-align:center;margin-top:16px;font-size:12px;color:#64748b">To'lov: ${getPayTypeName(r.payType)} | Rahmat!</div>
+      <div class="receipt-row" style="font-size:16px;font-weight:800;margin-top:8px;color:var(--text)"><span>JAMI:</span><span>${fmt(r.total)}</span></div>
+      <div style="text-align:center;margin-top:8px;font-size:12px;color:var(--text3)">To'lov: ${getPayTypeName(r.payType)}</div>
+      <div style="text-align:center;margin-top:12px;font-size:13px;color:var(--accent2);font-weight:600">${footer}</div>
       <button class="btn btn-primary btn-md w-full" style="justify-content:center;margin-top:16px" onclick="window.print()">${svgIcon('print',16)} Chop etish</button>
     </div>`,380);
 }
@@ -2692,7 +2790,7 @@ function renderWarehouse(tab){
     <td style="font-weight:700;color:#6366f1">${fmt(p.price*p.stock)}</td>
     <td>${badge(p.stock>10?'Yetarli':p.stock>0?'Kam':'Tugagan',p.stock>10?'green':p.stock>0?'yellow':'red')}</td>
     <td><button class="btn btn-outline btn-sm" onclick="printLabel('${p.id}')">${svgIcon('print',14)} Nakleyka</button></td>
-    ${isAdmin?`<td><button class="btn btn-primary btn-sm" style="margin-right:4px" onclick="openEditProductModal('${p.id}')">${svgIcon('edit',14)}</button><button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">${svgIcon('trash',14)}</button></td>`:'<td></td>'}
+    ${isAdmin?`<td><button class="btn btn-primary btn-sm" style="margin-right:4px" onclick="openEditProductModal('${p.id}')">${svgIcon('edit',14)}</button><button class="btn btn-outline btn-sm" style="margin-right:4px" onclick="openProductImageModal('${p.id}')" title="Rasm"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h3l2-3h6l2 3h3a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg></button><button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">${svgIcon('trash',14)}</button></td>`:'<td></td>'}
     </tr>`).join('');
 
   const addForm=`<div class="card" style="max-width:500px;margin-bottom:0">
@@ -2785,21 +2883,21 @@ function renderWarehouse(tab){
           <div class="stat-sub">${products.reduce((s,p)=>s+p.stock,0)} dona qoldiqda</div>
         </div>
       </div>
-      <div class="card">
-        <div style="display:flex;gap:10px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
-          <input id="wh-search" class="form-input" placeholder="Mahsulot qidirish... (Enter)" value="${search}" onkeydown="if(event.key==='Enter')renderWarehouse('stock')" style="flex:1;min-width:200px" />
-          <button class="btn btn-success btn-sm" onclick="exportWarehouseExcel()" title="Excel yuklab olish">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> Excel
+      <div class="card" style="padding:0;overflow:visible">
+        <div class="wh-sticky-toolbar">
+          <input id="wh-search" class="form-input" placeholder="Mahsulot qidirish... (Enter)" value="${search}" onkeydown="if(event.key==='Enter')renderWarehouse('stock')" style="flex:1;min-width:160px;max-width:300px" />
+          <button class="btn btn-success btn-sm" onclick="exportWarehouseExcel()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> Excel
           </button>
           <button class="btn btn-primary btn-sm" onclick="printSelectedLabels()">
-            ${svgIcon('print',14)} Tanlanganlarnakleykasi
+            ${svgIcon('print',13)} Nakleyka
           </button>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:var(--text2);white-space:nowrap">
             <input type="checkbox" id="select-all-chk" onchange="toggleSelectAll(this)" style="width:16px;height:16px;accent-color:#6366f1" />
             Barchasini tanlash
           </label>
         </div>
-        <div style="overflow:auto">
+        <div style="overflow:auto;padding:0 16px 16px">
         <table><thead><tr><th style="width:36px"></th><th>ID</th><th>Nomi</th><th>Kategoriya</th><th>Narx</th><th>Qoldiq</th><th>Jami narx</th><th>Holat</th><th>Nakleyka</th>${isAdmin?'<th>O\'chirish</th>':''}</tr></thead>
         <tbody>${rows||'<tr><td colspan="10" style="text-align:center;padding:20px;color:#94a3b8">Mahsulotlar yo\'q</td></tr>'}</tbody></table>
         </div>
@@ -2916,7 +3014,7 @@ function renderPurchaseOrdersHtml(){
           <div>
             <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;text-transform:uppercase">Holat tarixi</div>
             <div style="display:flex;flex-direction:column;gap:6px">${timelineHtml||'<span style="color:var(--text3);font-size:11px">Tarix yo\'q</span>'}</div>
-            ${po.note?`<div style="margin-top:8px;font-size:12px;color:var(--text3)">📝 ${po.note}</div>`:''}
+            ${po.note?`<div style="margin-top:8px;font-size:12px;color:var(--text3)">${po.note}</div>`:''}
           </div>
         </div>
       </td>
@@ -4547,8 +4645,8 @@ function renderBranches(){
             <span style="background:${b.active!==false?'rgba(34,197,94,.12)':'rgba(239,68,68,.1)'};color:${b.active!==false?'#4ade80':'#f87171'};border:1px solid ${b.active!==false?'rgba(34,197,94,.2)':'rgba(239,68,68,.2)'};border-radius:6px;padding:1px 8px;font-size:10px;font-weight:700">${b.active!==false?'Faol':'Nofaol'}</span>
             ${isActive?`<span style="background:rgba(99,102,241,.2);color:var(--accent2);border:1px solid rgba(99,102,241,.3);border-radius:6px;padding:1px 8px;font-size:10px;font-weight:700">✓ Joriy filial</span>`:''}
           </div>
-          ${b.address?`<div style="font-size:12px;color:var(--text3);margin-top:2px">📍 ${b.address}</div>`:''}
-          ${b.phone?`<div style="font-size:12px;color:var(--text3)">📞 ${b.phone}</div>`:''}
+          ${b.address?`<div style="font-size:12px;color:var(--text3);margin-top:2px">${b.address}</div>`:''}
+          ${b.phone?`<div style="font-size:12px;color:var(--text3)">${b.phone}</div>`:''}
           <div style="display:flex;gap:10px;margin-top:4px">
             <span style="font-size:11px;color:var(--text3)">${bOrders.length} ta buyurtma</span>
             ${bDebts.length>0?`<span style="font-size:11px;color:#f87171">${bDebts.length} ta ochiq qarz</span>`:''}
@@ -4724,6 +4822,745 @@ function deleteBranch(bid){
   save();toast('Filial o\'chirildi!');renderBranches();
 }
 
+// ================================================================
+//  AUDIT LOG — Kim, qachon, nima qildi
+// ================================================================
+function addAudit(action, details='', page=''){
+  if(!currentUser)return;
+  auditLog.unshift({
+    id:genId('AUD'), date:new Date().toISOString(),
+    by:currentUser.name, role:currentUser.role,
+    action, details, page
+  });
+  if(auditLog.length>500) auditLog=auditLog.slice(0,500);
+  // Audit log ni qo'shimcha saqlaymiz
+  lsSet('auditLog', auditLog);
+}
+
+function renderAuditLog(srch,filterBy){
+  srch=srch||''; filterBy=filterBy||'';
+  let list=[...auditLog];
+  if(srch) list=list.filter(a=>
+    a.by.toLowerCase().includes(srch.toLowerCase())||
+    a.action.toLowerCase().includes(srch.toLowerCase())||
+    (a.details&&a.details.toLowerCase().includes(srch.toLowerCase()))
+  );
+  if(filterBy) list=list.filter(a=>a.by===filterBy);
+  const usersList=[...new Set(auditLog.map(a=>a.by))];
+  const rows=list.slice(0,200).map(a=>`
+    <tr>
+      <td style="font-size:12px;color:var(--text2)">${fmtDate(a.date)}</td>
+      <td style="font-weight:600">${a.by} <span style="font-size:11px;color:var(--text3)">(${a.role||'—'})</span></td>
+      <td>${badge(a.action,'blue')}</td>
+      <td style="font-size:12px;color:var(--text2)">${a.details||'—'}</td>
+      <td style="font-size:11px;color:var(--text3)">${a.page||'—'}</td>
+    </tr>`).join('');
+
+  document.getElementById('page-content').innerHTML=`
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>Audit log</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          <span class="badge badge-blue">${list.length} ta</span>
+          <button class="btn btn-ghost btn-sm" onclick="exportAuditExcel()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> Excel
+          </button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+        <input id="audit-srch" class="form-input" placeholder="Qidirish..." value="${srch}"
+          oninput="renderAuditLog(this.value,document.getElementById('audit-fb').value)"
+          style="flex:1;min-width:180px"/>
+        <select id="audit-fb" class="form-input" style="width:175px"
+          onchange="renderAuditLog(document.getElementById('audit-srch').value,this.value)">
+          <option value="">Barcha foydalanuvchilar</option>
+          ${usersList.map(u=>`<option value="${u}" ${filterBy===u?'selected':''}>${u}</option>`).join('')}
+        </select>
+        ${srch||filterBy?`<button class="btn btn-ghost btn-sm" onclick="renderAuditLog()">✕ Tozalash</button>`:''}
+      </div>
+      <div style="overflow:auto">
+        <table><thead><tr><th>Sana</th><th>Foydalanuvchi</th><th>Amal</th><th>Tafsilot</th><th>Sahifa</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text3)">Hech narsa topilmadi</td></tr>'}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+
+function exportAuditExcel(){
+  if(!auditLog.length){toast('Audit log bo\'m-bo\'sh!','error');return;}
+  const headers=['Sana','Foydalanuvchi','Rol','Amal','Tafsilot','Sahifa'];
+  const rows=auditLog.map(a=>[fmtDate(a.date),a.by,a.role||'',a.action,a.details||'',a.page||'']);
+  downloadXlsx('audit_log_'+new Date().toISOString().slice(0,10)+'.xlsx', headers, rows);
+  toast('Audit log Excel yuklab olindi!');
+}
+
+// ================================================================
+//  ANALITIKA — Hisobot va statistika
+// ================================================================
+function renderAnalytics(){
+  const now=new Date();
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
+  const today=now.toISOString().slice(0,10);
+  const pg=document.getElementById('page-content');
+  pg.innerHTML=`
+    <div class="card" style="margin-bottom:12px;padding:12px 16px">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <div style="display:flex;gap:4px">
+          <button class="btn btn-primary btn-sm" onclick="showAnalyticsTab('rating')" id="atab-rating"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Sotuv reytingi</button>
+          <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('cashier')" id="atab-cashier"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Kassirlar</button>
+          <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('margin')" id="atab-margin"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Margin</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--text2)">Davr:</span>
+          <input type="date" id="ana-from" class="form-input" value="${monthStart}" style="width:140px;padding:5px 8px" onchange="refreshAnalytics()"/>
+          <span style="color:var(--text3)">—</span>
+          <input type="date" id="ana-to" class="form-input" value="${today}" style="width:140px;padding:5px 8px" onchange="refreshAnalytics()"/>
+          <button class="btn btn-ghost btn-sm" onclick="document.getElementById('ana-from').value='';document.getElementById('ana-to').value='';refreshAnalytics()">Tozalash</button>
+        </div>
+      </div>
+    </div>
+    <div id="analytics-content"></div>`;
+  showAnalyticsTab('rating');
+}
+
+function refreshAnalytics(){
+  const tabs=['rating','cashier','margin'];
+  const active=tabs.find(t=>{const b=document.getElementById('atab-'+t);return b&&b.classList.contains('btn-primary');})||'rating';
+  showAnalyticsTab(active);
+}
+
+
+function showAnalyticsTab(tab){
+  ['rating','cashier','margin'].forEach(t=>{
+    const btn=document.getElementById('atab-'+t);
+    if(btn){btn.className=t===tab?'btn btn-primary btn-sm':'btn btn-ghost btn-sm';}
+  });
+  const box=document.getElementById('analytics-content');
+  if(!box)return;
+
+  // Sana filtri
+  const fromVal=((document.getElementById('ana-from')||{}).value)||'';
+  const toVal=((document.getElementById('ana-to')||{}).value)||'';
+  let filtOrders=currentBranchId?orders.filter(o=>o.branchId===currentBranchId):[...orders];
+  if(fromVal){const fd=new Date(fromVal);filtOrders=filtOrders.filter(o=>new Date(o.date)>=fd);}
+  if(toVal){const td=new Date(toVal);td.setHours(23,59,59);filtOrders=filtOrders.filter(o=>new Date(o.date)<=td);}
+  const periodLabel=fromVal||toVal?(fromVal+' → '+toVal):'Barcha vaqt';
+
+  if(tab==='rating'){
+    // Mahsulot sotuv reytingi
+    const productSales={};
+    filtOrders.forEach(o=>{
+      (o.items||[]).forEach(item=>{
+        if(!productSales[item.pid]){productSales[item.pid]={pid:item.pid,name:item.name,qty:0,revenue:0,orders:0};}
+        productSales[item.pid].qty+=item.qty;
+        productSales[item.pid].revenue+=item.price*item.qty;
+        productSales[item.pid].orders++;
+      });
+    });
+    const sorted=Object.values(productSales).sort((a,b)=>b.qty-a.qty);
+    const maxQty=(sorted[0]&&sorted[0].qty)||1;
+    const rows=sorted.map((p,i)=>`
+      <tr>
+        <td style="font-weight:700;color:var(--text3)">${i+1}</td>
+        <td style="font-weight:600">${badge(p.pid,'purple')} ${p.name}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;height:8px;background:var(--glass);border-radius:4px;overflow:hidden">
+              <div style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;width:${Math.round(p.qty/maxQty*100)}%"></div>
+            </div>
+            <span style="font-weight:700;min-width:40px">${p.qty} ta</span>
+          </div>
+        </td>
+        <td style="font-weight:700;color:var(--accent2)">${fmt(p.revenue)}</td>
+        <td>${p.orders} sotuv</td>
+      </tr>`).join('');
+    // Eng kam sotiladigan
+    const leastSold=products.filter(p=>!productSales[p.id]).map(p=>({pid:p.id,name:p.name,qty:0}));
+    box.innerHTML=`
+      <div class="card">
+        <div class="card-header"><span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><polyline points="22,12 18,12 15,21 9,3 6,12 2,12"/></svg>Sotuv reytingi <span style="font-size:11px;color:var(--text3);font-weight:400">${periodLabel}</span></span>${badge(sorted.length+' ta','green')}</div>
+        <div style="overflow:auto"><table><thead><tr><th>#</th><th>Mahsulot</th><th>Sotuv (grafik)</th><th>Tushum</th><th>Buyurtmalar</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Sotuvlar yo\'q</td></tr>'}</tbody></table></div>
+      </div>
+      ${leastSold.length>0?`<div class="card"><div class="card-header"><span class="card-title">Hech sotilmagan mahsulotlar</span>${badge(leastSold.length+' ta','red')}</div>
+      <div class="flex wrap">${leastSold.map(p=>`<div class="low-stock-item"><span>${p.name}</span>${badge('0 sotuv','red')}</div>`).join('')}</div></div>`:''}`;
+  }
+
+  else if(tab==='cashier'){
+    // Kassir samaradorligi
+    const cashierStats={};
+    filtOrders.forEach(o=>{
+      if(!cashierStats[o.cashier]){cashierStats[o.cashier]={name:o.cashier,orders:0,revenue:0,avgCheck:0};}
+      cashierStats[o.cashier].orders++;
+      cashierStats[o.cashier].revenue+=o.total;
+    });
+    Object.values(cashierStats).forEach(c=>{c.avgCheck=c.orders?Math.round(c.revenue/c.orders):0;});
+    const sorted=Object.values(cashierStats).sort((a,b)=>b.revenue-a.revenue);
+    const rows=sorted.map((c,i)=>`
+      <tr>
+        <td style="font-weight:700;color:var(--text3)">${i+1}</td>
+        <td style="font-weight:600">${c.name}</td>
+        <td style="font-weight:700;text-align:center">${c.orders}</td>
+        <td style="font-weight:700;color:var(--accent2)">${fmt(c.revenue)}</td>
+        <td style="color:var(--text2)">${fmt(c.avgCheck)}</td>
+      </tr>`).join('');
+    box.innerHTML=`<div class="card">
+      <div class="card-header"><span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Kassir samaradorligi <span style="font-size:11px;color:var(--text3);font-weight:400">${periodLabel}</span></span></div>
+      <table><thead><tr><th>#</th><th>Kassir</th><th>Sotuvlar soni</th><th>Jami tushum</th><th>O'rtacha chek</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text3)">Ma\'lumot yo\'q</td></tr>'}</tbody></table>
+    </div>`;
+  }
+
+  else if(tab==='margin'){
+    // Foyda marginali
+    const prodStats={};
+    filtOrders.forEach(o=>{
+      (o.items||[]).forEach(item=>{
+        const p=products.find(x=>x.id===item.pid);
+        if(!p)return;
+        const costP=p.cost&&p.cost>0?p.cost:0;
+        if(!prodStats[item.pid]){prodStats[item.pid]={pid:item.pid,name:item.name,cost:costP,price:p.price,qty:0,revenue:0,profit:0,hasCost:costP>0};}
+        prodStats[item.pid].qty+=item.qty;
+        prodStats[item.pid].revenue+=item.price*item.qty;
+        if(costP>0)prodStats[item.pid].profit+=(item.price-costP)*item.qty;
+      });
+    });
+    const sorted=Object.values(prodStats).sort((a,b)=>b.profit-a.profit);
+    const rows=sorted.map((p,i)=>{
+      const margin=p.hasCost&&p.revenue?Math.round(p.profit/p.revenue*100):null;
+      return`<tr>
+        <td style="font-weight:700;color:var(--text3)">${i+1}</td>
+        <td style="font-weight:600">${badge(p.pid,'purple')} ${p.name}</td>
+        <td>${p.cost&&p.cost>0?fmt(p.cost)+'<span style="color:var(--text3)"> → </span>'+fmt(p.price):'— → '+fmt(p.price)}</td>
+        <td style="font-weight:700;color:${margin===null?'var(--text3)':margin>=30?'#4ade80':margin>=15?'#fbbf24':'#f87171'}">${margin===null?'<span style="font-size:11px">Kirim narxi yo\'q</span>':margin+'%'}</td>
+        <td style="font-weight:700;color:${p.profit>0?'var(--accent2)':'#f87171'}">${p.hasCost?fmt(p.profit):'—'}</td>
+        <td style="color:var(--text2)">${p.qty} ta</td>
+      </tr>`;}).join('');
+    box.innerHTML=`<div class="card">
+      <div class="card-header"><span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Foyda marginali <span style="font-size:11px;color:var(--text3);font-weight:400">${periodLabel}</span></span></div>
+      <table><thead><tr><th>#</th><th>Mahsulot</th><th>Narx (tan → sotish)</th><th>Margin %</th><th>Jami foyda</th><th>Sotilib</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Ma\'lumot yo\'q</td></tr>'}</tbody></table>
+    </div>`;
+  }
+}
+
+// ================================================================
+//  CHEGIRMA KARTALAR (LOYALTI)
+// ================================================================
+function renderLoyalty(srch){
+  srch=srch||'';
+  const total=loyaltyCards.reduce((s,c)=>s+c.totalSpent,0);
+  let list=loyaltyCards;
+  if(srch) list=list.filter(c=>
+    c.customerName.toLowerCase().includes(srch.toLowerCase())||
+    c.cardNo.toLowerCase().includes(srch.toLowerCase())||
+    (c.phone&&c.phone.includes(srch))
+  );
+  const cards=list.map(c=>`
+    <tr>
+      <td style="font-weight:700;color:var(--accent2)">${c.cardNo}</td>
+      <td style="font-weight:600">${c.customerName}</td>
+      <td style="color:var(--text2)">${c.phone||'—'}</td>
+      <td><span style="background:rgba(34,197,94,.15);color:#4ade80;border-radius:8px;padding:3px 10px;font-weight:700">${c.discount}%</span></td>
+      <td style="font-weight:700;color:var(--accent2)">${fmt(c.totalSpent)}</td>
+      <td style="font-size:12px;color:var(--text3)">${fmtDate(c.createdAt)}</td>
+      <td><div style="display:flex;gap:6px">
+        <button class="btn btn-outline btn-sm" onclick="openLoyaltyModal('${c.id}')">Tahrirlash</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteLoyalty('${c.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+        </button>
+      </div></td>
+    </tr>`).join('');
+
+  document.getElementById('page-content').innerHTML=`
+    <div class="stat-grid" style="margin-bottom:16px">
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:3px"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Jami kartalar</span></div><div class="stat-value">${loyaltyCards.length}</div></div>
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:3px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Jami xaridlar</span></div><div class="stat-value">${fmt(total)}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>Chegirma kartalar</span>
+        <button class="btn btn-primary btn-sm" onclick="openLoyaltyModal(null)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Yangi karta
+        </button>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:14px">
+        <input class="form-input" placeholder="Ism, karta №, telefon..." value="${srch}"
+          oninput="renderLoyalty(this.value)" style="flex:1"/>
+        ${srch?`<button class="btn btn-ghost btn-sm" onclick="renderLoyalty()">✕</button>`:''}
+      </div>
+      <div style="overflow:auto">
+        <table><thead><tr><th>Karta №</th><th>Mijoz</th><th>Telefon</th><th>Chegirma</th><th>Jami xarid</th><th>Sana</th><th></th></tr></thead>
+        <tbody>${cards||'<tr><td colspan="7" style="text-align:center;padding:30px;color:var(--text3)">Hech narsa topilmadi</td></tr>'}</tbody></table>
+      </div>
+    </div>`;
+}
+
+
+function openLoyaltyModal(id){
+  const c=id?loyaltyCards.find(x=>x.id===id):null;
+  openModal(c?'Kartani tahrirlash':'Yangi chegirma karta',`
+    <div class="form-group"><label class="form-label">Mijoz ismi *</label>
+      <input id="lc-name" class="form-input" value="${c?c.customerName:''}" placeholder="Ism Familiya"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group"><label class="form-label">Telefon</label>
+        <input id="lc-phone" class="form-input" value="${c?c.phone||'':''}" placeholder="+998..."/></div>
+      <div class="form-group"><label class="form-label">Chegirma % *</label>
+        <input id="lc-disc" type="number" min="1" max="99" class="form-input" value="${c?c.discount:5}" placeholder="5"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Karta raqami</label>
+      <div style="display:flex;gap:8px">
+        <input id="lc-card" class="form-input" value="${c?c.cardNo:''}" placeholder="Avtomatik" style="flex:1"/>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('lc-card').value='LC'+Date.now().toString(36).toUpperCase().slice(-6)">Generatsiya</button>
+      </div></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary btn-md" onclick="saveLoyaltyCard(${c?`'${c.id}'`:'null'})">Saqlash</button>
+      <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
+    </div>`,400);
+}
+
+function saveLoyaltyCard(id){
+  const name=((document.getElementById('lc-name')||{}).value||'').trim();
+  const phone=((document.getElementById('lc-phone')||{}).value||'').trim();
+  const discount=parseInt((document.getElementById('lc-disc')||{}).value||5)||5;
+  const cardNo=((document.getElementById('lc-card')||{}).value||'').trim()||'LC'+Date.now().toString(36).toUpperCase().slice(-6);
+  if(!name){toast('Mijoz ismi majburiy!','error');return;}
+  if(id&&id!=='null'){
+    loyaltyCards=loyaltyCards.map(c=>c.id===id?{...c,customerName:name,phone,discount,cardNo}:c);
+    toast('Karta yangilandi!');
+  } else {
+    loyaltyCards.push({id:genId('LC'),cardNo,customerName:name,phone,discount,totalSpent:0,createdAt:new Date().toISOString()});
+    toast('Yangi karta qo\'shildi!');
+  }
+  save(); closeModal(); renderLoyalty();
+  addAudit('Chegirma karta '+(id&&id!=='null'?'tahrirlandi':'yaratildi'),name,'Chegirma kartalar');
+}
+
+function deleteLoyalty(id){
+  if(!confirm('Kartani o\'chirishni tasdiqlaysizmi?'))return;
+  loyaltyCards=loyaltyCards.filter(c=>c.id!==id);
+  save(); toast('Karta o\'chirildi!'); renderLoyalty();
+}
+
+// Kassada loyalti karta qo'llash
+function applyLoyaltyCard(){
+  const cardNo=((document.getElementById('loyalty-card-input')||{}).value||'').trim();
+  if(!cardNo){toast('Karta raqamini kiriting!','error');return;}
+  const card=loyaltyCards.find(c=>c.cardNo===cardNo||c.phone===cardNo);
+  if(!card){toast('Karta topilmadi!','error');return;}
+  window._activeLoyalty=card;
+  toast(`${card.customerName} — ${card.discount}% chegirma faollashtirildi!`);
+  // Chegirma inputni yangilash
+  const di=document.getElementById('discount-input');
+  if(di)di.value=card.discount;
+  updateSummary&&updateSummary();
+}
+
+// ================================================================
+//  BANK HISOBLAR
+// ================================================================
+function renderBankAccounts(){
+  const total=bankAccounts.reduce((s,b)=>s+b.balance,0);
+  const cards=bankAccounts.map(b=>{
+    const txns=(b.transactions||[]).slice(-5).reverse();
+    return`<div class="user-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <div>
+          <div style="font-size:16px;font-weight:800;color:var(--text)">${b.name}</div>
+          <div style="font-size:12px;color:var(--text3)">${b.bankName||''}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:20px;font-weight:800;color:${b.balance>=0?'var(--accent2)':'#f87171'}">${fmt(b.balance)}</div>
+        </div>
+      </div>
+      <div style="margin-bottom:10px">
+        ${txns.map(t=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--glass-border)">
+          <span style="color:var(--text2)">${t.desc||t.type}</span>
+          <span style="font-weight:700;color:${t.type==='income'?'#4ade80':'#f87171'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</span>
+        </div>`).join('')}
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-success btn-sm" onclick="openBankTxnModal('${b.id}','income')">+ Kirim</button>
+        <button class="btn btn-danger btn-sm" onclick="openBankTxnModal('${b.id}','expense')">− Chiqim</button>
+        <button class="btn btn-outline btn-sm" onclick="openBankEditModal('${b.id}')">Tahrirlash</button>
+        <button class="btn btn-ghost btn-sm" onclick="showBankHistory('${b.id}')">Tarixi</button>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('page-content').innerHTML=`
+    <div class="stat-grid" style="margin-bottom:16px">
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Jami hisoblarda</span></div><div class="stat-value" style="color:var(--accent2)">${fmt(total)}</div></div>
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Hisoblar soni</span></div><div class="stat-value">${bankAccounts.length}</div></div>
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Bank hisoblari</span>
+        <button class="btn btn-primary btn-sm" onclick="openBankEditModal(null)">+ Yangi hisob</button>
+      </div>
+      <div class="user-cards">${cards||'<div style="text-align:center;padding:40px;color:var(--text3)">Bank hisob qo\'shilmagan</div>'}</div>
+    </div>`;
+}
+
+function openBankEditModal(id){
+  const b=id?bankAccounts.find(x=>x.id===id):null;
+  openModal(b?'Hisobni tahrirlash':'Yangi bank hisobi',`
+    <div class="form-group"><label class="form-label">Hisob nomi *</label>
+      <input id="ba-name" class="form-input" value="${b?b.name:''}" placeholder="Masalan: Kapitalbank"/></div>
+    <div class="form-group"><label class="form-label">Bank nomi</label>
+      <input id="ba-bank" class="form-input" value="${b?b.bankName||'':''}" placeholder="Kapitalbank, Xalqbank..."/></div>
+    <div class="form-group"><label class="form-label">Boshlang'ich balans</label>
+      <input id="ba-bal" type="number" class="form-input" value="${b?b.balance:0}"/></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary btn-md" onclick="saveBankAccount(${b?`'${b.id}'`:'null'})">Saqlash</button>
+      <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
+    </div>`,380);
+}
+
+function saveBankAccount(id){
+  const name=((document.getElementById('ba-name')||{}).value||'').trim();
+  const bankName=((document.getElementById('ba-bank')||{}).value||'').trim();
+  const balance=parseFloat((document.getElementById('ba-bal')||{}).value||0)||0;
+  if(!name){toast('Hisob nomi majburiy!','error');return;}
+  if(id&&id!=='null'){
+    bankAccounts=bankAccounts.map(b=>b.id===id?{...b,name,bankName}:b);
+    toast('Hisob yangilandi!');
+  } else {
+    bankAccounts.push({id:genId('BA'),name,bankName,balance,transactions:[]});
+    toast('Yangi hisob qo\'shildi!');
+  }
+  save(); closeModal(); renderBankAccounts();
+}
+
+function openBankTxnModal(bankId, type){
+  const b=bankAccounts.find(x=>x.id===bankId);
+  if(!b)return;
+  openModal(`${type==='income'?'Kirim':'Chiqim'}: ${b.name}`,`
+    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:12px;color:var(--text3)">Joriy balans</div>
+      <div style="font-size:20px;font-weight:800;color:var(--accent2)">${fmt(b.balance)}</div>
+    </div>
+    <div class="form-group"><label class="form-label">Summa *</label>
+      <input id="ba-txn-amount" type="number" class="form-input" placeholder="0"/></div>
+    <div class="form-group"><label class="form-label">Izoh</label>
+      <input id="ba-txn-desc" class="form-input" placeholder="To'lov maqsadi..."/></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn ${type==='income'?'btn-success':'btn-danger'} btn-md" onclick="saveBankTxn('${bankId}','${type}')">
+        ${type==='income'?'Kirim qo\'shish':'Chiqim qilish'}
+      </button>
+      <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
+    </div>`,380);
+}
+
+function saveBankTxn(bankId, type){
+  const amount=parseFloat((document.getElementById('ba-txn-amount')||{}).value||0)||0;
+  const desc=((document.getElementById('ba-txn-desc')||{}).value||'').trim();
+  if(!amount){toast('Summa kiriting!','error');return;}
+  bankAccounts=bankAccounts.map(b=>{
+    if(b.id!==bankId)return b;
+    const newBal=type==='income'?b.balance+amount:b.balance-amount;
+    const txns=b.transactions||[];
+    txns.push({id:genId('BTX'),date:new Date().toISOString(),amount,type,desc:desc||type,by:currentUser.name});
+    return {...b,balance:newBal,transactions:txns};
+  });
+  save(); toast(type==='income'?`+${fmt(amount)} kirim qilindi!`:`-${fmt(amount)} chiqim qilindi!`);
+  closeModal(); renderBankAccounts();
+  addAudit('Bank '+(type==='income'?'kirim':'chiqim'), `${fmt(amount)}: ${desc}`,'Bank hisob');
+}
+
+function showBankHistory(bankId){
+  const b=bankAccounts.find(x=>x.id===bankId);
+  if(!b)return;
+  const rows=(b.transactions||[]).slice().reverse().map(t=>`
+    <tr>
+      <td style="font-size:12px;color:var(--text2)">${fmtDate(t.date)}</td>
+      <td style="font-weight:700;color:${t.type==='income'?'#4ade80':'#f87171'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</td>
+      <td>${t.desc||'—'}</td>
+      <td style="font-size:12px;color:var(--text3)">${t.by||'—'}</td>
+    </tr>`).join('');
+  openModal(`${b.name} — Tranzaksiyalar tarixi`,`
+    <div style="overflow:auto;max-height:60vh">
+      <table><thead><tr><th>Sana</th><th>Summa</th><th>Izoh</th><th>Kim</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="4" style="text-align:center;padding:20px;color:var(--text3)">Tranzaksiyalar yo\'q</td></tr>'}</tbody></table>
+    </div>`,500);
+}
+
+// ================================================================
+//  CHEK SOZLASH va OMBOR O'TKAZISH — renderSettings ichida bo'ladi
+// ================================================================
+// Ombor o'tkazish — filiallar o'rtasida mahsulot ko'chirish
+function openWarehouseTransferModal(){
+  if(branches.length<2){toast('Kamida 2 ta filial bo\'lishi kerak!','error');return;}
+  const branchOpts=branches.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+  const prodOpts=products.map(p=>`<option value="${p.id}">${p.name} (${p.stock} dona)</option>`).join('');
+  openModal('Ombor o\'tkazish — Filiallar o\'rtasida',`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="form-group"><label class="form-label">Qaydan *</label>
+        <select id="tr-from" class="form-input">${branchOpts}</select></div>
+      <div class="form-group"><label class="form-label">Qayga *</label>
+        <select id="tr-to" class="form-input">${branchOpts}</select></div>
+    </div>
+    <div class="form-group"><label class="form-label">Mahsulot *</label>
+      <select id="tr-prod" class="form-input">${prodOpts}</select></div>
+    <div class="form-group"><label class="form-label">Miqdor *</label>
+      <input id="tr-qty" type="number" min="1" class="form-input" placeholder="1"/></div>
+    <div class="form-group"><label class="form-label">Izoh</label>
+      <input id="tr-note" class="form-input" placeholder="O'tkazish sababi..."/></div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary btn-md" onclick="confirmWarehouseTransfer()">O'tkazish</button>
+      <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
+    </div>`,440);
+}
+
+function confirmWarehouseTransfer(){
+  const fromId=(document.getElementById('tr-from')||{}).value;
+  const toId=(document.getElementById('tr-to')||{}).value;
+  const prodId=(document.getElementById('tr-prod')||{}).value;
+  const qty=parseInt((document.getElementById('tr-qty')||{}).value||0)||0;
+  const note=((document.getElementById('tr-note')||{}).value||'').trim();
+  if(!fromId||!toId||fromId===toId){toast('Qaydan va Qayga filiallari farqli bo\'lishi kerak!','error');return;}
+  if(!prodId||qty<=0){toast('Mahsulot va miqdorni kiriting!','error');return;}
+  const p=products.find(x=>x.id===prodId);
+  if(!p){return;}
+  if(p.stock<qty){toast(`Yetarli mahsulot yo'q! Qoldiq: ${p.stock} dona`,'error');return;}
+  const fromBranch=branches.find(b=>b.id===fromId);
+  const toBranch=branches.find(b=>b.id===toId);
+  // Stockni o'tkazish — mahsulot global, transfer log saqlaymiz
+  products=products.map(x=>x.id===prodId?{...x,stock:x.stock-qty}:x);
+  // Transfer log (importHistory da saqlaymiz)
+  importHistory.push({
+    id:genId('TRF'), date:new Date().toISOString(),
+    by:currentUser.name, source:'transfer',
+    fromBranch:(fromBranch&&fromBranch.name)||fromId, toBranch:(toBranch&&toBranch.name)||toId,
+    items:[{pid:prodId,name:p.name,qty,cost:p.cost||0,price:p.price}],
+    note
+  });
+  save();
+  toast(`${qty} ta "${p.name}" → ${(toBranch&&toBranch.name)||''} ga o'tkazildi!`);
+  closeModal();
+  addAudit('Ombor o\'tkazish', `${qty} × ${p.name}: ${(fromBranch&&fromBranch.name)||''} → ${(toBranch&&toBranch.name)||''}`,'Ombor');
+}
+
+// Mahsulotga rasm yuklash
+function openProductImageModal(pid){
+  const p=products.find(x=>x.id===pid);
+  if(!p)return;
+  openModal(`Rasm yuklash: ${p.name}`,`
+    <div style="text-align:center;margin-bottom:16px">
+      ${p.image?`<img src="${p.image}" style="max-width:200px;max-height:150px;border-radius:10px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto">`:'<div style="width:150px;height:120px;background:var(--glass);border-radius:10px;margin:0 auto;display:flex;align-items:center;justify-content:center;color:var(--text3)">Rasm yo\'q</div>'}
+    </div>
+    <div class="form-group">
+      <label class="form-label">Rasm yuklash (JPEG/PNG)</label>
+      <input id="prod-img-file" type="file" accept="image/*" class="form-input" onchange="previewProductImg(this,'${pid}')"/>
+    </div>
+    ${p.image?`<button class="btn btn-danger btn-sm" onclick="removeProductImage('${pid}')">Rasmni o'chirish</button>`:''}
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn btn-primary btn-md" onclick="saveProductImage('${pid}')">Saqlash</button>
+      <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
+    </div>`,400);
+  window._productImgData=p.image||null;
+  window._productImgPid=pid;
+}
+
+function previewProductImg(inp,pid){
+  const file=inp.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    window._productImgData=e.target.result;
+    toast('Rasm yuklandi. "Saqlash" bosing.');
+  };
+  reader.readAsDataURL(file);
+}
+
+function saveProductImage(pid){
+  products=products.map(p=>p.id===pid?{...p,image:window._productImgData||null}:p);
+  save();toast('Rasm saqlandi!');closeModal();
+  renderWarehouse();
+}
+
+function removeProductImage(pid){
+  window._productImgData=null;
+  products=products.map(p=>p.id===pid?{...p,image:null}:p);
+  save();toast('Rasm o\'chirildi!');closeModal();
+}
+
+// ================================================================
+//  KO'P TIL TIZIMI
+// ================================================================
+const TRANSLATIONS = {
+  uz: {
+    dashboard:'Boshqaruv', cashier:'Kassa', orders:'Buyurtmalar',
+    warehouse:'Ombor', inventory:'Inventarizatsiya', operations:'Kassa Amaliyot',
+    users:'Foydalanuvchilar', chat:'Xabarlar', debts:'Qarzlar',
+    settings:'Sozlamalar', partners:'Hamkorlar', branches:'Filiallar',
+    analytics:'Analitika', loyalty:'Chegirma kartalar', bank:'Bank hisob', audit:'Audit log',
+    sell:'Sotish', total:'Jami', discount:'Chegirma', payment:'To\'lov',
+    save:'Saqlash', cancel:'Bekor', add:'Qo\'shish', edit:'Tahrirlash', delete:'O\'chirish',
+  },
+  ru: {
+    dashboard:'Панель', cashier:'Касса', orders:'Заказы',
+    warehouse:'Склад', inventory:'Инвентаризация', operations:'Операции',
+    users:'Пользователи', chat:'Сообщения', debts:'Долги',
+    settings:'Настройки', partners:'Партнёры', branches:'Филиалы',
+    analytics:'Аналитика', loyalty:'Карты лояльности', bank:'Банк счета', audit:'Журнал аудита',
+    sell:'Продать', total:'Итого', discount:'Скидка', payment:'Оплата',
+    save:'Сохранить', cancel:'Отмена', add:'Добавить', edit:'Изменить', delete:'Удалить',
+  },
+  en: {
+    dashboard:'Dashboard', cashier:'Cashier', orders:'Orders',
+    warehouse:'Warehouse', inventory:'Inventory', operations:'Operations',
+    users:'Users', chat:'Messages', debts:'Debts',
+    settings:'Settings', partners:'Partners', branches:'Branches',
+    analytics:'Analytics', loyalty:'Loyalty Cards', bank:'Bank Accounts', audit:'Audit Log',
+    sell:'Sell', total:'Total', discount:'Discount', payment:'Payment',
+    save:'Save', cancel:'Cancel', add:'Add', edit:'Edit', delete:'Delete',
+  }
+};
+
+function t(key){
+  const lang=appSettings.language||'uz';
+  return (TRANSLATIONS[lang]&&TRANSLATIONS[lang][key])||TRANSLATIONS.uz[key]||key;
+}
+
+function switchLanguage(lang){
+  appSettings.language=lang;
+  save();
+  toast(`Til o'zgartirildi: ${lang==='uz'?'O\'zbek':lang==='ru'?'Русский':'English'}`);
+  // Nav va pageTitles ni yangilash
+  updateBranchSelector();
+  const active=document.querySelector('#sidebar-nav .nav-item.active');
+  if(active&&active.dataset.page) goPage(active.dataset.page);
+}
+
+// ================================================================
+//  CHEGIRMA QOIDALARI (Ommaviy va Sovg'a)
+// ================================================================
+function renderDiscountRules(){
+  return`<div class="card" style="margin-bottom:14px">
+    <div class="card-header">
+      <span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><polyline points="20,12 20,22 4,22 4,12"/><rect x="2" y="7" width="20" height="5"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>Sovg'a qoidalari (X olsang Y bepul)</span>
+      <button class="btn btn-primary btn-sm" onclick="openGiftRuleModal(null)">+ Qo'shish</button>
+    </div>
+    ${(appSettings.giftRules||[]).length===0?'<div style="color:var(--text3);padding:10px">Qoidalar yo\'q</div>':
+    (appSettings.giftRules||[]).map(r=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--glass);border-radius:10px;margin-bottom:6px">
+        <div>
+          <span style="font-weight:600">${r.name||'Sovg\'a'}</span>
+          <span style="font-size:12px;color:var(--text3);margin-left:8px">${r.buyQty} ta olsang ${r.freeQty} ta bepul</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:11px;color:${r.active?'#4ade80':'var(--text3)'}">●${r.active?'Faol':'Nofaol'}</span>
+          <button class="btn btn-ghost btn-sm" onclick="toggleGiftRule('${r.id}')">ON/OFF</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteGiftRule('${r.id}')">✕</button>
+        </div>
+      </div>`).join('')}
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>Ommaviy chegirmalar (Kategoriya bo'yicha)</span>
+      <button class="btn btn-primary btn-sm" onclick="openBulkDiscountModal(null)">+ Qo'shish</button>
+    </div>
+    ${(appSettings.bulkDiscounts||[]).length===0?'<div style="color:var(--text3);padding:10px">Chegirmalar yo\'q</div>':
+    (appSettings.bulkDiscounts||[]).map(d=>`
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px;background:var(--glass);border-radius:10px;margin-bottom:6px">
+        <div>
+          <span style="font-weight:600">${d.category}</span>
+          <span style="font-size:12px;color:var(--text3);margin-left:8px">${d.minQty} ta dan ${d.discountPct}% chegirma</span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:11px;color:${d.active?'#4ade80':'var(--text3)'}">●${d.active?'Faol':'Nofaol'}</span>
+          <button class="btn btn-ghost btn-sm" onclick="toggleBulkDiscount('${d.id}')">ON/OFF</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteBulkDiscount('${d.id}')">✕</button>
+        </div>
+      </div>`).join('')}
+  </div>`;
+}
+
+function openGiftRuleModal(id){
+  const r=id?(appSettings.giftRules||[]).find(x=>x.id===id):null;
+  const prodOpts=products.map(p=>`<option value="${p.id}" ${r&&r.productId===p.id?'selected':''}>${p.name}</option>`).join('');
+  openModal('Sovg\'a qoidasi',`
+    <div class="form-group"><label class="form-label">Nomi</label><input id="gr-name" class="form-input" value="${r?r.name:''}" placeholder="Masalan: 2+1 aktsiya"/></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group"><label class="form-label">Nechta olsa *</label><input id="gr-buy" type="number" min="1" class="form-input" value="${r?r.buyQty:2}"/></div>
+      <div class="form-group"><label class="form-label">Nechta bepul *</label><input id="gr-free" type="number" min="1" class="form-input" value="${r?r.freeQty:1}"/></div>
+    </div>
+    <div class="form-group"><label class="form-label">Mahsulot (bo'sh = hammaga)</label><select id="gr-prod" class="form-input"><option value="">Barcha mahsulotlar</option>${prodOpts}</select></div>
+    <div style="display:flex;gap:10px"><button class="btn btn-primary btn-md" onclick="saveGiftRule(${r?`'${r.id}'`:'null'})">Saqlash</button><button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button></div>`,380);
+}
+
+function saveGiftRule(id){
+  const name=((document.getElementById('gr-name')||{}).value||'').trim();
+  const buyQty=parseInt((document.getElementById('gr-buy')||{}).value||2)||2;
+  const freeQty=parseInt((document.getElementById('gr-free')||{}).value||1)||1;
+  const productId=(document.getElementById('gr-prod')||{}).value||'';
+  if(!appSettings.giftRules)appSettings.giftRules=[];
+  if(id&&id!=='null'){
+    appSettings.giftRules=appSettings.giftRules.map(r=>r.id===id?{...r,name,buyQty,freeQty,productId}:r);
+  } else {
+    appSettings.giftRules.push({id:genId('GR'),name:name||`${buyQty}+${freeQty}`,buyQty,freeQty,productId,active:true});
+  }
+  save();toast('Saqlandi!');closeModal();renderSettings();
+}
+
+function toggleGiftRule(id){
+  appSettings.giftRules=(appSettings.giftRules||[]).map(r=>r.id===id?{...r,active:!r.active}:r);
+  save();renderSettings();
+}
+function deleteGiftRule(id){
+  appSettings.giftRules=(appSettings.giftRules||[]).filter(r=>r.id!==id);
+  save();renderSettings();
+}
+
+function openBulkDiscountModal(id){
+  const d=id?(appSettings.bulkDiscounts||[]).find(x=>x.id===id):null;
+  const catOpts=categories.map(c=>`<option value="${c}" ${d&&d.category===c?'selected':''}>${c}</option>`).join('');
+  openModal('Ommaviy chegirma',`
+    <div class="form-group"><label class="form-label">Kategoriya *</label><select id="bd-cat" class="form-input">${catOpts}</select></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="form-group"><label class="form-label">Minimal miqdor *</label><input id="bd-qty" type="number" min="1" class="form-input" value="${d?d.minQty:5}"/></div>
+      <div class="form-group"><label class="form-label">Chegirma % *</label><input id="bd-pct" type="number" min="1" max="99" class="form-input" value="${d?d.discountPct:10}"/></div>
+    </div>
+    <div style="display:flex;gap:10px"><button class="btn btn-primary btn-md" onclick="saveBulkDiscount(${d?`'${d.id}'`:'null'})">Saqlash</button><button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button></div>`,360);
+}
+
+function saveBulkDiscount(id){
+  const category=(document.getElementById('bd-cat')||{}).value||'';
+  const minQty=parseInt((document.getElementById('bd-qty')||{}).value||5)||5;
+  const discountPct=parseInt((document.getElementById('bd-pct')||{}).value||10)||10;
+  if(!category){toast('Kategoriya tanlang!','error');return;}
+  if(!appSettings.bulkDiscounts)appSettings.bulkDiscounts=[];
+  if(id&&id!=='null'){
+    appSettings.bulkDiscounts=appSettings.bulkDiscounts.map(d=>d.id===id?{...d,category,minQty,discountPct}:d);
+  } else {
+    appSettings.bulkDiscounts.push({id:genId('BD'),category,minQty,discountPct,active:true});
+  }
+  save();toast('Saqlandi!');closeModal();renderSettings();
+}
+
+function toggleBulkDiscount(id){
+  appSettings.bulkDiscounts=(appSettings.bulkDiscounts||[]).map(d=>d.id===id?{...d,active:!d.active}:d);
+  save();renderSettings();
+}
+function deleteBulkDiscount(id){
+  appSettings.bulkDiscounts=(appSettings.bulkDiscounts||[]).filter(d=>d.id!==id);
+  save();renderSettings();
+}
+
+function saveCompanySettings(){
+  appSettings.companyName=((document.getElementById('set-cname')||{}).value||'').trim()||'Pro Cases';
+  appSettings.companyPhone=((document.getElementById('set-cphone')||{}).value||'').trim();
+  appSettings.companyAddress=((document.getElementById('set-caddr')||{}).value||'').trim();
+  appSettings.receiptFooter=((document.getElementById('set-footer')||{}).value||'').trim();
+  appSettings.lowStockThreshold=parseInt((document.getElementById('set-threshold')||{}).value||10)||10;
+  save();
+  toast('Kompaniya sozlamalari saqlandi!');
+  addAudit('Sozlamalar yangilandi','Kompaniya ma\'lumotlari','Sozlamalar');
+}
+
 function renderSettings() {
   const t = THEMES[currentThemeId] || THEMES.darkglass;
   const themeCards = Object.entries(THEMES).map(([id, theme]) => {
@@ -4831,6 +5668,43 @@ function renderSettings() {
           </div>`:''}
         </div>
       </div>
+
+      <!-- Kompaniya va chek sozlamalari -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:16px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>Kompaniya va chek sozlamalari</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+          <div><label class="form-label">Kompaniya nomi</label>
+            <input id="set-cname" class="form-input" value="${appSettings.companyName||''}" placeholder="Pro Cases"/></div>
+          <div><label class="form-label">Telefon</label>
+            <input id="set-cphone" class="form-input" value="${appSettings.companyPhone||''}" placeholder="+998..."/></div>
+        </div>
+        <div class="form-group"><label class="form-label">Manzil</label>
+          <input id="set-caddr" class="form-input" value="${appSettings.companyAddress||''}" placeholder="Shahar, ko'cha, uy"/></div>
+        <div class="form-group"><label class="form-label">Chek pastki yozuv</label>
+          <input id="set-footer" class="form-input" value="${appSettings.receiptFooter||''}" placeholder="Xaridingiz uchun rahmat!"/></div>
+        <div class="form-group"><label class="form-label">Kam qoldiq ogohlantirish chegarasi</label>
+          <input id="set-threshold" type="number" class="form-input" value="${appSettings.lowStockThreshold||10}" min="1"/></div>
+        <button class="btn btn-primary btn-sm" onclick="saveCompanySettings()">Saqlash</button>
+      </div>
+
+      <!-- Til tanlash -->
+      <div class="card">
+        <div class="card-title" style="margin-bottom:14px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>Interfeys tili</div>
+        <div style="display:flex;gap:10px">
+          ${[{id:'uz',label:"O'zbek 🇺🇿"},{id:'ru',label:"Русский 🇷🇺"},{id:'en',label:"English 🇬🇧"}].map(l=>`
+            <button onclick="switchLanguage('${l.id}')" style="flex:1;padding:10px;border-radius:10px;border:2px solid ${appSettings.language===l.id?'var(--accent)':'var(--glass-border)'};background:${appSettings.language===l.id?'rgba(99,102,241,.15)':'var(--glass)'};color:${appSettings.language===l.id?'var(--accent2)':'var(--text2)'};cursor:pointer;font-weight:600;font-family:inherit;font-size:13px">${l.label}</button>`).join('')}
+        </div>
+      </div>
+
+      <!-- Chegirma qoidalari -->
+      ${renderDiscountRules()}
+
+      <!-- Ombor o'tkazish -->
+      ${branches.length>=2?`<div class="card">
+        <div class="card-title" style="margin-bottom:14px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>Ombor o'tkazish</div>
+        <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Filiallar o'rtasida mahsulot ko'chirish</p>
+        <button class="btn btn-primary btn-sm" onclick="openWarehouseTransferModal()">Mahsulot o'tkazish</button>
+      </div>`:''}
 
       <!-- Tezkor rang tanlash -->
       <div class="card">
@@ -4944,7 +5818,7 @@ function renderSupplierDashboard(){
         <span style="color:var(--text2)">Jami: <b style="color:var(--text)">${totalQty} dona</b></span>
         <span style="color:var(--accent2);font-weight:700">${fmt(totalCost)}</span>
       </div>
-      ${po.note?`<div style="font-size:12px;color:var(--text3);padding:6px 10px;background:rgba(255,255,255,.03);border-radius:8px;margin-bottom:8px">📝 ${po.note}</div>`:''}
+      ${po.note?`<div style="font-size:12px;color:var(--text3);padding:6px 10px;background:rgba(255,255,255,.03);border-radius:8px;margin-bottom:8px">${po.note}</div>`:''}
       ${timeline?`<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px">${timeline}</div>`:''}
       ${actionBtn}
     </div>`;
@@ -5202,7 +6076,7 @@ function openUserModal(uid){
         }).join('')}
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:6px">
-        💡 <b>Admin</b> tanlansa — barcha ruxsatlar avtomatik beriladi
+        <b>Admin</b> tanlansa — barcha ruxsatlar avtomatik beriladi
       </div>
     </div>
     ${!uid?`<div class="warn-box">Yangi foydalanuvchi birinchi kirishda parolni o'zgartirishi talab qilinadi.</div>`:''}
