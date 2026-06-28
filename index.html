@@ -4900,8 +4900,11 @@ function exportAuditExcel(){
 // ================================================================
 function renderAnalytics(){
   const now=new Date();
-  const monthStart=new Date(now.getFullYear(),now.getMonth(),1).toISOString().slice(0,10);
-  const today=now.toISOString().slice(0,10);
+  // Local vaqt bilan ishlash (UTC emas)
+  const pad=n=>String(n).padStart(2,'0');
+  const localDate=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+  const monthStart=localDate(new Date(now.getFullYear(),now.getMonth(),1));
+  const today=localDate(now);
   const pg=document.getElementById('page-content');
   pg.innerHTML=`
     <div class="card" style="margin-bottom:12px;padding:12px 16px">
@@ -4939,12 +4942,18 @@ function showAnalyticsTab(tab){
   const box=document.getElementById('analytics-content');
   if(!box)return;
 
-  // Sana filtri
+  // Sana filtri — local vaqt bilan solishtirish
   const fromVal=((document.getElementById('ana-from')||{}).value)||'';
   const toVal=((document.getElementById('ana-to')||{}).value)||'';
   let filtOrders=currentBranchId?orders.filter(o=>o.branchId===currentBranchId):[...orders];
-  if(fromVal){const fd=new Date(fromVal);filtOrders=filtOrders.filter(o=>new Date(o.date)>=fd);}
-  if(toVal){const td=new Date(toVal);td.setHours(23,59,59);filtOrders=filtOrders.filter(o=>new Date(o.date)<=td);}
+  if(fromVal){
+    const fd=new Date(fromVal+'T00:00:00');
+    filtOrders=filtOrders.filter(o=>new Date(o.date)>=fd);
+  }
+  if(toVal){
+    const td=new Date(toVal+'T23:59:59');
+    filtOrders=filtOrders.filter(o=>new Date(o.date)<=td);
+  }
   const periodLabel=fromVal||toVal?(fromVal+' → '+toVal):'Barcha vaqt';
 
   if(tab==='rating'){
