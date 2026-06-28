@@ -2061,13 +2061,72 @@ function renderCartTable(){
     </div></td></tr>`).join('')}</tbody></table>`;
 }
 
+// Sovg'a va ommaviy chegirma qoidalarini avtomatik hisoblash
+function calcAutoDiscount(){
+  if(!cart.length) return {giftItems:[], bulkDisc:0, info:[]};
+  const giftItems=[];
+  const info=[];
+
+  // 1. Sovg'a qoidalari (X olsang Y bepul)
+  const activeGifts=(appSettings.giftRules||[]).filter(r=>r.active);
+  activeGifts.forEach(rule=>{
+    // Mahsulot belgilangan bo'lsa — faqat o'sha mahsulotga, yo'q bo'lsa barchangga
+    const matchItems=rule.productId
+      ? cart.filter(i=>i.pid===rule.productId)
+      : cart;
+    matchItems.forEach(item=>{
+      const sets=Math.floor(item.qty/rule.buyQty); // nechta to'plam
+      if(sets>0){
+        const freeQty=sets*rule.freeQty;
+        const freeVal=item.price*freeQty;
+        giftItems.push({pid:item.pid,name:item.name,qty:freeQty,price:item.price,freeVal});
+        info.push(`${rule.name||rule.buyQty+'+'+rule.freeQty}: ${item.name} × ${freeQty} ta bepul`);
+      }
+    });
+  });
+
+  // 2. Ommaviy chegirmalar (kategoriya bo'yicha)
+  let bulkDisc=0;
+  const activeBulk=(appSettings.bulkDiscounts||[]).filter(d=>d.active);
+  activeBulk.forEach(rule=>{
+    const catItems=cart.filter(i=>{
+      const p=products.find(x=>x.id===i.pid);
+      return p&&p.category===rule.category;
+    });
+    const totalQty=catItems.reduce((s,i)=>s+i.qty,0);
+    if(totalQty>=rule.minQty){
+      const catTotal=catItems.reduce((s,i)=>s+i.price*i.qty,0);
+      const disc=Math.round(catTotal*(rule.discountPct/100));
+      bulkDisc+=disc;
+      info.push(`${rule.category} kategoriya: ${rule.discountPct}% chegirma (-${fmt(disc)})`);
+    }
+  });
+
+  return {giftItems, bulkDisc, info};
+}
+
 function renderSummary(){
   const disc=parseInt((document.getElementById('discount-input')||{}).value||0)||0;
   const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const da=Math.round(sub*(disc/100));
-  const total=sub-da;
+
+  // Avtomatik qoidalar
+  const auto=calcAutoDiscount();
+  const giftVal=auto.giftItems.reduce((s,g)=>s+g.freeVal,0);
+  const manualDa=Math.round(sub*(disc/100));
+  const totalDa=manualDa+auto.bulkDisc+giftVal;
+  const total=Math.max(0,sub-totalDa);
+
+  // Qoidalar info
+  const infoHtml=auto.info.length>0?`
+    <div style="margin:6px 0;padding:6px 8px;background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.2);border-radius:8px">
+      ${auto.info.map(t=>`<div style="font-size:11px;color:#4ade80">✓ ${t}</div>`).join('')}
+    </div>`:'';
+
   return`<div class="summary-row"><span>Jami:</span><span>${fmt(sub)}</span></div>
-    <div class="summary-row"><span>Chegirma:</span><span style="color:#ef4444">-${fmt(da)}</span></div>
+    ${disc>0?`<div class="summary-row"><span>Chegirma (${disc}%):</span><span style="color:#ef4444">-${fmt(manualDa)}</span></div>`:''}
+    ${auto.bulkDisc>0?`<div class="summary-row"><span>Ommaviy chegirma:</span><span style="color:#f59e0b">-${fmt(auto.bulkDisc)}</span></div>`:''}
+    ${giftVal>0?`<div class="summary-row"><span>Sovg'a (${auto.giftItems.map(g=>g.qty+'ta').join(', ')}):</span><span style="color:#4ade80">-${fmt(giftVal)}</span></div>`:''}
+    ${infoHtml}
     <div class="divider"></div>
     <div class="summary-total"><span>To'lash:</span><span>${fmt(total)}</span></div>`;
 }
@@ -2442,8 +2501,11 @@ function doSell(){
   if(cart.length===0){toast('Savat bo\'m-bo\'sh!','error');return;}
   const disc=parseInt((document.getElementById('discount-input')||{}).value||0)||0;
   const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const da=Math.round(sub*(disc/100));
-  const total=sub-da;
+  const auto=calcAutoDiscount();
+  const giftVal=auto.giftItems.reduce((s,g)=>s+g.freeVal,0);
+  const manualDa=Math.round(sub*(disc/100));
+  const da=manualDa+auto.bulkDisc+giftVal;
+  const total=Math.max(0,sub-da);
   if(currentPayType==='aralash'){
     const c=parseFloat((document.getElementById('cash-paid')||{}).value)||0;
     const k=parseFloat((document.getElementById('card-paid')||{}).value)||0;
