@@ -4761,26 +4761,25 @@ function payPartnerTxn(pid,txnId){
   if(!partner)return;
   const txn=partner.transactions.find(t=>t.id===txnId);
   if(!txn||txn.paid)return;
-  if(!confirm(`${fmt(txn.amount)} to'lovni tasdiqlaysizmi? Kassa qoldig'iga qo'shiladi.`))return;
-  txn.paid=true;
-  partner.balance=(partner.balance||0)-txn.amount;
-  // Kassaga partner_income sifatida
-  expenses.push({
-    id:genId('EXP'),date:new Date().toISOString(),
-    category:'Hamkor to\'lovi',
-    desc:'Hamkor: '+partner.name+' — '+txn.desc,
-    amount:-txn.amount,
-    type:'partner_income',
-    by:currentUser.name,
-    smenaId:currentSmenaId,
-    partnerId:pid
+  confirmDialog(`${fmt(txn.amount)} to'lovni tasdiqlaysizmi? Kassa qoldig'iga qo'shiladi.`,()=>{
+    txn.paid=true;
+    partner.balance=(partner.balance||0)-txn.amount;
+    expenses.push({
+      id:genId('EXP'),date:new Date().toISOString(),
+      category:'Hamkor to\'lovi',
+      desc:'Hamkor: '+partner.name+' — '+txn.desc,
+      amount:-txn.amount,
+      type:'partner_income',
+      by:currentUser.name,
+      smenaId:currentSmenaId,
+      partnerId:pid
+    });
+    partners=partners.map(p=>p.id===pid?partner:p);
+    save();
+    toast(`${fmt(txn.amount)} to'landi! Kassa qoldig'iga qo'shildi.`);
+    openPartnerDetail(pid);
   });
-  partners=partners.map(p=>p.id===pid?partner:p);
-  save();
-  toast(`${fmt(txn.amount)} to'landi! Kassa qoldig'iga qo'shildi.`);
-  openPartnerDetail(pid);
 }
-
 // ================================================================
 //  FILIALLAR BO'LIMI
 // ================================================================
@@ -6180,24 +6179,25 @@ function renderUsers(){
 
 // Sessiyani yakunlash (admin tomonidan)
 async function terminateUserSession(sessionId, userId){
-  if(!confirm('Bu sessiyani yakunlashni tasdiqlaysizmi? Foydalanuvchi tizimdan chiqariladi.'))return;
-  try{
-    await gasCall('terminateSession', {sessionId, userId});
-    // Lokal sessiyalar ro'yxatini yangilash
-    window._onlineSessions=(window._onlineSessions||[]).filter(s=>s.sessionId!==sessionId);
-    toast('Sessiya yakunlandi!');
-    renderUsers();
-  }catch(e){toast('Xato: '+e.message,'error');}
+  confirmDialog('Bu sessiyani yakunlashni tasdiqlaysizmi?',async()=>{
+    try{
+      await gasCall('terminateSession', {sessionId, userId});
+      window._onlineSessions=(window._onlineSessions||[]).filter(s=>s.sessionId!==sessionId);
+      toast('Sessiya yakunlandi!');
+      renderUsers();
+    }catch(e){toast('Xato: '+e.message,'error');}
+  });
 }
 
 async function terminateAllSessions(userId){
-  if(!confirm('Bu foydalanuvchining BARCHA sessiyalarini yakunlashni tasdiqlaysizmi?'))return;
-  try{
-    await gasCall('terminateSession', {userId});
-    window._onlineSessions=(window._onlineSessions||[]).filter(s=>String(s.id)!==String(userId));
-    toast('Barcha sessiyalar yakunlandi!');
-    renderUsers();
-  }catch(e){toast('Xato: '+e.message,'error');}
+  confirmDialog('Bu foydalanuvchining BARCHA sessiyalarini yakunlashni tasdiqlaysizmi?',async()=>{
+    try{
+      await gasCall('terminateSession', {userId});
+      window._onlineSessions=(window._onlineSessions||[]).filter(s=>String(s.id)!==String(userId));
+      toast('Barcha sessiyalar yakunlandi!');
+      renderUsers();
+    }catch(e){toast('Xato: '+e.message,'error');}
+  });
 }
 
 function openUserModal(uid){
