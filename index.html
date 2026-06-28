@@ -2581,10 +2581,11 @@ function deletePayType(id){
   if(payTypes.length<=1){toast('Kamida 1 ta to\'lov turi bo\'lishi kerak!','error');return;}
   const inUse=orders.some(o=>o.payType===id);
   if(inUse){toast('Bu to\'lov turi buyurtmalarda ishlatilgan, o\'chirib bo\'lmaydi!','error');return;}
-  if(!confirm('Bu to\'lov turini o\'chirishni tasdiqlaysizmi?'))return;
-  payTypes=payTypes.filter(pt=>pt.id!==id);
-  save();
-  toast('To\'lov turi o\'chirildi!','error');
+  confirmDialog('Bu to\'lov turini o\'chirishni tasdiqlaysizmi?',()=>{
+    payTypes=payTypes.filter(pt=>pt.id!==id);
+    save();
+    renderPayTypesModal();
+  });
   openPayTypesModal();
 }
 
@@ -3541,10 +3542,11 @@ function confirmReceive(poId){
 }
 
 function deletePurchaseOrder(poId){
-  if(!confirm('Bu zakazni o\'chirishni tasdiqlaysizmi?'))return;
-  purchaseOrders=purchaseOrders.filter(o=>o.id!==poId);
-  save();
-  toast('Zakaz o\'chirildi!','error');
+  confirmDialog('Bu zakazni o\'chirishni tasdiqlaysizmi?',()=>{
+    purchaseOrders=purchaseOrders.filter(o=>o.id!==id);
+    save();
+    renderWarehouse('orders');
+  });
   renderWarehouse('orders');
 }
 
@@ -3763,11 +3765,12 @@ function openCatModal(){
 function deleteCategory(cat){
   const inUse=products.some(p=>p.category===cat);
   if(inUse){toast(`"${cat}" kategoriyasi ishlatilmoqda, o'chirib bo'lmaydi!`,'error');return;}
-  if(!confirm(`"${cat}" kategoriyasini o'chirishni tasdiqlaysizmi?`))return;
-  categories=categories.filter(c=>c!==cat);
-  save();
-  toast('Kategoriya o\'chirildi!','error');
-  openCatModal();
+  confirmDialog(`"${cat}" kategoriyasini o'chirishni tasdiqlaysizmi?`,()=>{
+    categories=categories.filter(c=>c!==cat);
+    save();
+    toast('Kategoriya o\'chirildi!','error');
+    openCatModal();
+  });
 }
 
 function addCategory(){
@@ -4258,10 +4261,11 @@ function addExpCat(){
 function deleteExpCat(cat){
   const inUse=expenses.some(e=>e.category===cat);
   if(inUse){toast(`"${cat}" ishlatilmoqda, o'chirib bo'lmaydi!`,'error');return;}
-  if(!confirm(`"${cat}" kategoriyasini o'chirishni tasdiqlaysizmi?`))return;
-  expCats=expCats.filter(c=>c!==cat);save();
-  toast('Kategoriya o\'chirildi!','error');
-  openExpCatModal();
+  confirmDialog(`"${cat}" kategoriyasini o'chirishni tasdiqlaysizmi?`,()=>{
+    expCats=expCats.filter(c=>c!==cat);save();
+    toast('Kategoriya o\'chirildi!','error');
+    openExpCatModal();
+  });
 }
 
 function saveExpense(){
@@ -4290,16 +4294,15 @@ function saveExpense(){
 }
 
 function deleteExpense(id){
-  if(!confirm('Harajatni o\'chirishni tasdiqlaysizmi?'))return;
-  const exp=expenses.find(e=>e.id===id);
-  // Agar "Qaytarish" harajati o'chirilsa — tegishli returnedItems larni qayta "expensed:false" qilamiz
-  if(exp&&exp.category==='Qaytarish'&&exp.returnOrderId&&exp.expensedRetIds){
-    orders=orders.map(o=>o.id===exp.returnOrderId?{...o,returnedItems:o.returnedItems.map(r=>exp.expensedRetIds.includes(r.retId)?{...r,expensed:false}:r)}:o);
-  }
-  expenses=expenses.filter(e=>e.id!==id);
-  save();
-  toast('Harajat o\'chirildi!','error');
-  renderOperations();
+  confirmDialog('Harajatni o\'chirishni tasdiqlaysizmi?',()=>{
+    const exp=expenses.find(e=>e.id===id);
+    if(exp&&exp.category==='Qaytarish'&&exp.returnOrderId&&exp.expensedRetIds){
+      orders=orders.map(o=>o.id===exp.returnOrderId?{...o,returnedItems:o.returnedItems.map(r=>exp.expensedRetIds.includes(r.retId)?{...r,expensed:false}:r)}:o);
+    }
+    expenses=expenses.filter(e=>e.id!==id);
+    toast('Harajat o\'chirildi!','error');
+    renderOperations();
+  });
 }
 
 function exportExpensesExcel(fromDate='',toDate='',showAll=false){
@@ -6366,11 +6369,12 @@ function deleteUser(uid){
   if(uid===currentUser.id){toast('O\'zingizni o\'chira olmaysiz!','error');return;}
   const u=users.find(usr=>usr.id===uid);
   if(!u)return;
-  if(!confirm(`${u.name}ni o'chirishni tasdiqlaysizmi?`))return;
-  users=users.filter(usr=>usr.id!==uid);
-  save();
-  toast('Foydalanuvchi o\'chirildi!','error');
-  renderUsers();
+  confirmDialog(`"${u.name}" foydalanuvchisini o'chirishni tasdiqlaysizmi?`,()=>{
+    users=users.filter(usr=>usr.id!==uid);
+    save();
+    toast('Foydalanuvchi o\'chirildi!','error');
+    renderUsers();
+  });
 }
 
 function openPermModal(uid){
@@ -6988,16 +6992,16 @@ function finishInventory(){
   if(activeInv.items.length===0){toast('Hech bir mahsulot skanlanmadi!','error');return;}
   const okCount=activeInv.items.filter(i=>{const p=products.find(pr=>pr.id===i.pid);return p&&i.factual===p.stock;}).length;
   const badCount=activeInv.items.length-okCount;
-  if(!confirm(`Inventarizatsiyani yakunlaysizmi?\nMos: ${okCount} ta\nFarq: ${badCount} ta`))return;
-  activeInv.status='closed';
-  inventories.push({...activeInv});
-  save();
-  const inv=activeInv;
-  activeInv=null;
-  toast('Inventarizatsiya yakunlandi!');
-  viewInvDetail(inv.id);
+  confirmDialog(`Inventarizatsiyani yakunlaysizmi? Mos: ${okCount} ta, Farq: ${badCount} ta`,()=>{
+    activeInv.status='closed';
+    inventories.push({...activeInv});
+    save();
+    const inv=activeInv;
+    activeInv=null;
+    toast('Inventarizatsiya yakunlandi!');
+    viewInvDetail(inv.id);
+  });
 }
-
 function viewInvDetail(invId){
   const inv=inventories.find(i=>i.id===invId);
   if(!inv){renderInventoryList();return;}
@@ -7173,12 +7177,13 @@ function saveSmenaEdit(smenaId){
 
 function deleteSmenaHistory(smenaId){
   if(currentUser.role!=='admin'){toast('Ruxsat yo\'q!','error');return;}
-  if(!confirm('Bu smena tarixini o\'chirishni tasdiqlaysizmi? Bog\'liq harajat yozuvi ham o\'chiriladi.'))return;
-  smenas=smenas.filter(s=>s.id!==smenaId);
-  expenses=expenses.filter(e=>!(e.type==='smena_profit'&&e.smenaId===smenaId));
-  save();
-  toast('Smena tarixi o\'chirildi!','error');
-  renderOperations();
+  confirmDialog('Bu smena tarixini o\'chirishni tasdiqlaysizmi?',()=>{
+    smenas=smenas.filter(s=>s.id!==smenaId);
+    expenses=expenses.filter(e=>!(e.type==='smena_profit'&&e.smenaId===smenaId));
+    save();
+    toast('Smena tarixi o\'chirildi!','error');
+    renderOperations();
+  });
 }
 
 // ===== QARZLAR SAHIFASI =====
@@ -7540,11 +7545,12 @@ function saveSmenaEdit(id){
 }
 
 function deleteSmenaEntry(id){
-  if(!confirm('Bu smena yozuvini o\'chirishni tasdiqlaysizmi?'))return;
-  expenses=expenses.filter(e=>e.id!==id);
-  save();
-  toast('Smena yozuvi o\'chirildi!','error');
-  renderOperations();
+  confirmDialog('Bu smena yozuvini o\'chirishni tasdiqlaysizmi?',()=>{
+    expenses=expenses.filter(e=>e.id!==id);
+    save();
+    toast('Smena yozuvi o\'chirildi!','error');
+    renderOperations();
+  });
 }
 
 async function sendChatMsg(){
@@ -7628,12 +7634,13 @@ function playBeep(type='success'){
 }
 
 function confirmReset(){
-  if(!confirm("DIQQAT! Barcha buyurtmalar, harajatlar tozalanadi. Mahsulotlar va foydalanuvchilar saqlanib qoladi. Davom etasizmi?"))return;
-  orders=[];
-  expenses=[];
-  save();
-  toast("Ma'lumotlar tozalandi!",'info');
-  renderUsers();
+  confirmDialog('DIQQAT! Barcha buyurtmalar, harajatlar tozalanadi. Davom etasizmi?',()=>{
+    orders=[];
+    expenses=[];
+    save();
+    toast("Ma'lumotlar tozalandi!",'info');
+    renderUsers();
+  });
 }
 </script>
 </body>
