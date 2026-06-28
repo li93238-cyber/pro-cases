@@ -28,6 +28,12 @@ body{font-family:'Inter','Segoe UI',system-ui,sans-serif;background:var(--bg);co
 @keyframes scaleIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
 @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
 @keyframes spin{to{transform:rotate(360deg)}}
+/* Push bildirishnoma animatsiyalari */
+@keyframes pushIn{from{opacity:0;transform:translateX(60px) scale(.9)}to{opacity:1;transform:translateX(0) scale(1)}}
+@keyframes pushOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(60px)}}
+
+@keyframes pushIn{from{opacity:0;transform:translateX(60px) scale(.9)}to{opacity:1;transform:translateX(0) scale(1)}}
+@keyframes pushOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(60px)}}
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 @keyframes glowPulse{0%,100%{box-shadow:0 0 12px rgba(99,102,241,.3)}50%{box-shadow:0 0 24px rgba(99,102,241,.6)}}
@@ -422,7 +428,7 @@ body.theme-light .divider{background:#e2e8f0}
   </div>
 
   <!-- MOBIL PASTKI TAB BAR -->
-  <div class="mobile-tabbar" id="mobile-tabbar">
+  <div class="mobile-tabbar" id="mobile-tabbar" style="display:none">
     <button class="mtab-btn active" data-mpage="dashboard" onclick="goPage('dashboard')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
       <span>Boshqaruv</span>
@@ -658,9 +664,11 @@ async function flushSave() {
     showSyncIndicator('saving');
     await Promise.all(promises);
     showSyncIndicator('saved');
+    showPushNotif('saved',"Ma'lumotlar saqlandi");
   } catch(e) {
     console.warn('Save error (offline?):', e.message);
     showSyncIndicator('error');
+    showPushNotif('error','Saqlashda xatolik! Internet aloqasini tekshiring.');
     // Keyingi urinishda qayta sinab ko'rish
     Object.assign(_savePending, pending);
   }
@@ -672,6 +680,7 @@ function showSyncIndicator(state) {
   if (state === 'saved') {
     el.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg> Saqlandi';
     el.style.color = '#16a34a';
+    showPushNotif('saved', 'Ma\'lumotlar saqlandi');
     setTimeout(() => { if(el) el.innerHTML = ''; }, 2000);
   } else if (state === 'local') {
     el.innerHTML = 'Oflayn';
@@ -683,8 +692,85 @@ function showSyncIndicator(state) {
   } else {
     el.innerHTML = 'Xato!';
     el.style.color = '#ef4444';
+    showPushNotif('error', 'Saqlashda xatolik! Internet aloqasini tekshiring.');
   }
 }
+
+// Push notification (yuqori o'ngda)
+let _pushTimer = null;
+function showPushNotif(type, msg) {
+  let box = document.getElementById('push-notif-box');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'push-notif-box';
+    box.style.cssText = 'position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none';
+    document.body.appendChild(box);
+  }
+  clearTimeout(_pushTimer);
+
+  const notif = document.createElement('div');
+  const isErr = type === 'error';
+  notif.style.cssText = `
+    display:flex;align-items:center;gap:10px;
+    padding:12px 16px;border-radius:12px;
+    background:${isErr ? 'rgba(239,68,68,.95)' : 'rgba(22,163,74,.95)'};
+    color:#fff;font-size:13px;font-weight:600;
+    box-shadow:0 8px 32px rgba(0,0,0,.25);
+    backdrop-filter:blur(12px);
+    border:1px solid ${isErr ? 'rgba(255,255,255,.15)' : 'rgba(255,255,255,.2)'};
+    pointer-events:auto;cursor:pointer;
+    animation:pushIn .25s cubic-bezier(.34,1.56,.64,1) both;
+    min-width:220px;max-width:320px;
+  `;
+  notif.innerHTML = `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      ${isErr
+        ? '<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>'
+        : '<polyline points="20,6 9,17 4,12"/>'}
+    </svg>
+    <span style="flex:1">${msg}</span>
+    <button onclick="this.parentElement.remove()" style="background:none;border:none;color:rgba(255,255,255,.7);cursor:pointer;padding:0;font-size:16px;line-height:1">×</button>
+  `;
+  notif.onclick = () => notif.remove();
+  box.appendChild(notif);
+
+  // Avtomatik yo'qolish
+  const delay = isErr ? 5000 : 2500;
+  setTimeout(() => {
+    notif.style.animation = 'pushOut .2s ease-in both';
+    setTimeout(() => notif.remove(), 200);
+  }, delay);
+}
+
+// ===== PUSH BILDIRISHNOMA =====
+function showPushNotif(type,msg){
+  let box=document.getElementById('push-notif-box');
+  if(!box){
+    box=document.createElement('div');
+    box.id='push-notif-box';
+    box.style.cssText='position:fixed;top:16px;right:16px;z-index:99999;display:flex;flex-direction:column;gap:8px;pointer-events:none';
+    document.body.appendChild(box);
+  }
+  const isErr=type==='error';
+  const notif=document.createElement('div');
+  notif.style.cssText='display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;background:'+(isErr?'rgba(239,68,68,.96)':'rgba(22,163,74,.96)')+';color:#fff;font-size:13px;font-weight:600;box-shadow:0 8px 32px rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.15);pointer-events:auto;cursor:pointer;animation:pushIn .25s cubic-bezier(.34,1.56,.64,1) both;min-width:220px;max-width:320px';
+  notif.innerHTML='<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="flex-shrink:0">'+(isErr?'<circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>':'<polyline points="20,6 9,17 4,12"/>')+'</svg><span style="flex:1">'+msg+'</span><span onclick="this.parentElement.remove()" style="opacity:.7;cursor:pointer;font-size:18px;line-height:1;padding:0 2px">×</span>';
+  notif.onclick=()=>notif.remove();
+  box.appendChild(notif);
+  setTimeout(()=>{notif.style.animation='pushOut .2s ease-in both';setTimeout(()=>notif.remove(),200);},(isErr?5000:2500));
+}
+
+// ===== CHIROYLI CONFIRM (brauzer confirm() o'rniga) =====
+function confirmDialog(msg,onOk){
+  const ov=document.getElementById('modal-overlay');
+  const mc=document.getElementById('modal-content');
+  if(!ov||!mc){if(window.confirm(msg)&&onOk)onOk();return;}
+  mc.style.maxWidth='380px';
+  mc.innerHTML='<div style="padding:28px 24px;text-align:center"><div style="width:54px;height:54px;border-radius:50%;background:rgba(239,68,68,.1);border:2px solid rgba(239,68,68,.2);display:flex;align-items:center;justify-content:center;margin:0 auto 16px"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></div><div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px">Tasdiqlash</div><div style="font-size:13px;color:var(--text2);margin-bottom:24px;line-height:1.6">'+msg+'</div><div style="display:flex;gap:10px;justify-content:center"><button id="_cd_ok" class="btn btn-danger btn-md" style="min-width:110px">Ha, tasdiqlash</button><button onclick="closeModal()" class="btn btn-ghost btn-md" style="min-width:110px">Bekor</button></div></div>';
+  document.getElementById('_cd_ok').onclick=()=>{closeModal();if(onOk)onOk();};
+  ov.classList.remove('hidden');
+}
+
 
 function getCurrentSmena(){
   return smenas.find(s=>s.id===currentSmenaId)||null;
@@ -1161,6 +1247,9 @@ function startApp(){
     }
   }
   window._navUserId=currentUser.id;
+  // Mobil tabbarni ko'rsatish (faqat login dan keyin)
+  const mtb=document.getElementById('mobile-tabbar');
+  if(mtb)mtb.style.display='';
   // Supplier uchun maxsus ko'rinish — faqat zakazlar
   if(currentUser.role==='supplier'){
     renderSidebarNav();
@@ -1238,6 +1327,8 @@ function doLogout(){
   currentUser=null;cart=[];autoMode=false;
   sessionStorage.removeItem('pos_session');
   sessionStorage.removeItem('pos_loginTime');
+  const mtb=document.getElementById('mobile-tabbar');
+  if(mtb)mtb.style.display='none';
   document.getElementById('app').classList.add('hidden');
   document.getElementById('login-page').classList.remove('hidden');
   document.getElementById('login-input').value='';
@@ -3595,11 +3686,12 @@ function deleteProduct(id){
   if(currentUser.role!=='admin'){toast('Ruxsat yo\'q!','error');return;}
   const p=products.find(pr=>pr.id===id);
   if(!p)return;
-  if(!confirm(`"${p.name}" mahsulotini o'chirishni tasdiqlaysizmi?`))return;
-  products=products.filter(pr=>pr.id!==id);
-  save();
-  toast('Mahsulot o\'chirildi!','error');
-  renderWarehouse('stock');
+  confirmDialog(`"${p.name}" mahsulotini o'chirishni tasdiqlaysizmi?`,()=>{
+    products=products.filter(pr=>pr.id!==id);
+    save();
+    toast('Mahsulot o\'chirildi!','error');
+    renderWarehouse('stock');
+  });
 }
 
 function openEditProductModal(id){
@@ -4879,11 +4971,11 @@ function toggleBranchActive(bid){
 }
 
 function deleteBranch(bid){
-  if(!confirm('Bu filialni o\'chirishni tasdiqlaysizmi?'))return;
+  confirmDialog('Bu filialni o\'chirishni tasdiqlaysizmi?',()=>{
   branches=branches.filter(b=>b.id!==bid);
   save();toast('Filial o\'chirildi!');renderBranches();
+  });
 }
-
 // ================================================================
 //  AUDIT LOG — Kim, qachon, nima qildi
 // ================================================================
@@ -5225,9 +5317,10 @@ function saveLoyaltyCard(id){
 }
 
 function deleteLoyalty(id){
-  if(!confirm('Kartani o\'chirishni tasdiqlaysizmi?'))return;
-  loyaltyCards=loyaltyCards.filter(c=>c.id!==id);
-  save(); toast('Karta o\'chirildi!'); renderLoyalty();
+  confirmDialog('Kartani o\'chirishni tasdiqlaysizmi?',()=>{
+    loyaltyCards=loyaltyCards.filter(c=>c.id!==id);
+    save(); toast('Karta o\'chirildi!'); renderLoyalty();
+  });
 }
 
 // Kassada loyalti karta qo'llash
