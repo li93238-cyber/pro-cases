@@ -838,7 +838,8 @@ const SESSION_ID=sessionStorage.getItem('pos_sid');
 const ALL_NAV_ITEMS=[
   {page:'dashboard',label:'Boshqaruv',icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',adminOnly:false},
   {page:'cashier',label:'Kassa',icon:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',adminOnly:false},
-  {page:'orders',label:'Buyurtmalar / Topshirish',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/>',adminOnly:false},
+  {page:'orders',label:'Buyurtmalar',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/>',adminOnly:false},
+  {page:'delivery',label:'Mahsulot topshirish',icon:'<path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/>',adminOnly:false,badgeFn:'pendingDelivery.length'},
   {page:'warehouse',label:'Ombor',icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>',adminOnly:false},
   {page:'inventory',label:'Inventarizatsiya',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><polyline points="9,11 12,14 22,4"/>',adminOnly:false},
   {page:'operations',label:'Kassa Amaliyot',icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',adminOnly:false},
@@ -888,7 +889,7 @@ function renderSidebarNav(){
       ${item.adminOnly?'data-admin-only="1"':''}
       style="display:${item.adminOnly&&currentUser&&currentUser.role!=='admin'?'none':'flex'}">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0">${item.icon}</svg>
-      <span class="label" style="flex:1">${item.label}${item.page==='chat'?'<span id="nav-chat-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px">0</span>':''}</span>
+      <span class="label" style="flex:1">${item.label}${item.page==='chat'?'<span id="nav-chat-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px">0</span>':''}${item.page==='delivery'?`<span id="nav-delivery-badge" style="${pendingDelivery.length>0?'':'display:none'};background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px">${pendingDelivery.length}</span>`:''}</span>
       <span class="nav-drag-handle" title="Tartibni o'zgartirish (sudrab suring)">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
       </span>
@@ -1438,7 +1439,7 @@ function skeletonStats(n=4){
 }
 
 // ===== NAVIGATION =====
-const pageTitles={dashboard:'Boshqaruv',cashier:'Kassa',orders:'Buyurtmalar',warehouse:'Ombor',inventory:'Inventarizatsiya',operations:'Kassa Amaliyot',users:'Foydalanuvchilar',chat:'Xabarlar',debts:'Qarzlar',settings:'Sozlamalar',partners:'Hamkorlar',branches:'Filiallar',analytics:'Analitika',loyalty:'Chegirma kartalar',bank:'Bank hisoblar',audit:'Audit log'};
+const pageTitles={dashboard:'Boshqaruv',cashier:'Kassa',orders:'Buyurtmalar',warehouse:'Ombor',inventory:'Inventarizatsiya',operations:'Kassa Amaliyot',users:'Foydalanuvchilar',chat:'Xabarlar',debts:'Qarzlar',settings:'Sozlamalar',partners:'Hamkorlar',branches:'Filiallar',analytics:'Analitika',loyalty:'Chegirma kartalar',bank:'Bank hisoblar',audit:'Audit log',delivery:'Mahsulot topshirish'};
 const isMobile=()=>window.innerWidth<=768;
 
 function goPage(page){
@@ -1479,6 +1480,7 @@ function goPage(page){
     case'loyalty':renderLoyalty();break;
     case'bank':renderBankAccounts();break;
     case'audit':renderAuditLog();break;
+    case'delivery':renderPendingDeliveryDashboard();break;
   }
 }
 
@@ -2060,6 +2062,20 @@ function renderDashboard(fromDate='',toDate=''){
       <div class="stat-card" style="border-color:#f59e0b"><div class="stat-card-header"><span class="stat-card-title">Harajatlar</span><div class="stat-icon" style="background:#f59e0b20;color:#f59e0b"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div></div><div class="stat-value">${fmt(toExp)}</div><div class="stat-sub">${label}</div></div>
       <div class="stat-card" style="border-color:#8b5cf6"><div class="stat-card-header"><span class="stat-card-title">Sof foyda</span><div class="stat-icon" style="background:#8b5cf620;color:#8b5cf6"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg></div></div><div class="stat-value">${fmt(toRev-toExp)}</div><div class="stat-sub">Tushum − harajat</div></div>
       <div class="stat-card" style="border-color:#ef4444"><div class="stat-card-header"><span class="stat-card-title">Ochiq qarzlar</span><div class="stat-icon" style="background:#ef444420;color:#ef4444"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></div></div><div class="stat-value" style="color:#ef4444">${fmt(debts.filter(d=>d.status==='open').reduce((s,d)=>s+(d.amount-d.paidAmount),0))}</div><div class="stat-sub">${debts.filter(d=>d.status==='open').length} ta qarzdor</div></div>
+      ${(()=>{
+        const pl=currentBranchId?pendingDelivery.filter(o=>o.branchId===currentBranchId):pendingDelivery;
+        if(!pl.length)return '';
+        const ps=pl.reduce((s,o)=>s+o.total,0);
+        return `<div class="stat-card" style="border-color:#f59e0b;cursor:pointer" onclick="goPage('delivery')">
+          <div class="stat-card-header"><span class="stat-card-title">Mahsulot topshirish</span>
+            <div class="stat-icon" style="background:#f59e0b20;color:#f59e0b">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg>
+            </div>
+          </div>
+          <div class="stat-value" style="color:#f59e0b">${fmt(ps)}</div>
+          <div class="stat-sub">${pl.length} ta buyurtma · Kassaga qo'shilmagan</div>
+        </div>`;
+      })()}
     </div>
     <div class="two-cols" style="margin-bottom:16px">
       <div class="card" style="margin-bottom:0"><div class="card-title" style="margin-bottom:20px">Haftalik savdo</div><div class="chart-wrap">${chartBars}</div></div>
@@ -2868,7 +2884,7 @@ function confirmDeliveryItem(id){
     save();
     toast(`${fmt(o.total)} kassa qoldig'iga qo'shildi!`);
     addAudit('Mahsulot chiqim',`${o.id} buyurtmaga o'tdi, ${fmt(o.total)}`,'Mahsulot topshirish');
-    renderDeliveryPage('pending');
+    renderPendingDeliveryDashboard();
   });
 }
 
@@ -2894,7 +2910,7 @@ function confirmAllDelivery(){
     save();
     toast(`${pendingList.length} ta buyurtma chiqim qilindi!`);
     addAudit('Barchasini chiqim',`${pendingList.length} ta, ${fmt(totalSum)}`,'Mahsulot topshirish');
-    renderDeliveryPage('pending');
+    renderPendingDeliveryDashboard();
   });
 }
 
@@ -2910,7 +2926,7 @@ function cancelDeliveryItem(id){
     save();
     toast('Buyurtma bekor qilindi. Mahsulotlar omborga qaytarildi.');
     addAudit('Buyurtma bekor',`${o.id} bekor, omborga qaytdi`,'Mahsulot topshirish');
-    renderDeliveryPage('pending');
+    renderPendingDeliveryDashboard();
   });
 }
 
@@ -4100,6 +4116,121 @@ function toggleLowStock(card){
   list.style.display=show?'block':'none';
   if(arrow)arrow.style.transform=show?'rotate(180deg)':'rotate(0)';
   card.style.cursor='pointer';
+}
+
+function renderPendingDeliveryDashboard(){
+  const pendingList=currentBranchId
+    ?pendingDelivery.filter(o=>o.branchId===currentBranchId)
+    :pendingDelivery;
+
+  // Statistika hisoblash
+  const pendingTotal=pendingList.reduce((s,o)=>s+o.total,0);
+  const todayStr=new Date().toDateString();
+  const todayPending=pendingList.filter(o=>new Date(o.date).toDateString()===todayStr);
+  const todayTotal=todayPending.reduce((s,o)=>s+o.total,0);
+
+  // Kassir bo'yicha guruhlaymiz
+  const byCashier={};
+  pendingList.forEach(o=>{
+    if(!byCashier[o.cashier])byCashier[o.cashier]={name:o.cashier,count:0,total:0,orders:[]};
+    byCashier[o.cashier].count++;
+    byCashier[o.cashier].total+=o.total;
+    byCashier[o.cashier].orders.push(o);
+  });
+
+  const isAdmin=currentUser.role==='admin'||currentUser.role==='accountant'||hasPerm('operations');
+
+  const cashierRows=Object.values(byCashier).sort((a,b)=>b.total-a.total).map(c=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:var(--glass);border:1px solid var(--glass-border);border-radius:10px;margin-bottom:6px">
+      <div>
+        <div style="font-weight:700;color:var(--text)">${c.name}</div>
+        <div style="font-size:12px;color:var(--text3)">${c.count} ta buyurtma</div>
+      </div>
+      <div style="text-align:right">
+        <div style="font-size:18px;font-weight:800;color:#f59e0b">${fmt(c.total)}</div>
+        <div style="font-size:11px;color:var(--text3)">kassaga qo'shilmagan</div>
+      </div>
+    </div>`).join('');
+
+  const recentRows=pendingList.slice().reverse().map(o=>`
+    <tr>
+      <td style="font-weight:700;color:var(--accent2);font-size:12px">${o.id}</td>
+      <td style="font-size:12px;color:var(--text2)">${fmtDate(o.date)}</td>
+      <td style="font-weight:600">${o.cashier}</td>
+      <td style="font-size:12px">${o.items.map(i=>`<div>${i.name} ×${i.qty}</div>`).join('')}</td>
+      <td style="font-weight:700;color:#f59e0b">${fmt(o.total)}</td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${isAdmin?`
+          <button class="btn btn-success btn-sm" onclick="confirmDeliveryItem('${o.id}');setTimeout(renderPendingDeliveryDashboard,100)" style="white-space:nowrap">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg> Chiqim
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="cancelDeliveryItem('${o.id}');setTimeout(renderPendingDeliveryDashboard,100)" style="white-space:nowrap">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Bekor
+          </button>`:''}
+          <button class="btn btn-ghost btn-sm" onclick="viewDeliveryDetail('${o.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+
+  document.getElementById('page-content').innerHTML=`
+    <!-- Asosiy stat kartalar -->
+    <div class="stat-grid" style="margin-bottom:16px">
+      <div class="stat-card" style="border-color:#f59e0b">
+        <div class="stat-card-header"><span class="stat-card-title">Umumiy kutayotgan</span>
+          <div class="stat-icon" style="background:#f59e0b20;color:#f59e0b">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg>
+          </div>
+        </div>
+        <div class="stat-value" style="color:#f59e0b">${fmt(pendingTotal)}</div>
+        <div class="stat-sub">${pendingList.length} ta buyurtma · Kassaga qo'shilmagan</div>
+      </div>
+      <div class="stat-card" style="border-color:#6366f1">
+        <div class="stat-card-header"><span class="stat-card-title">Bugun topshirilmagan</span>
+          <div class="stat-icon" style="background:#6366f120;color:#6366f1">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+        </div>
+        <div class="stat-value" style="color:#6366f1">${fmt(todayTotal)}</div>
+        <div class="stat-sub">${todayPending.length} ta · Bugungi kutayotganlar</div>
+      </div>
+    </div>
+
+    <!-- Kassir bo'yicha -->
+    ${Object.keys(byCashier).length>0?`
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header">
+        <span class="card-title">Kassir bo'yicha</span>
+        ${isAdmin&&pendingList.length>0?`
+        <button class="btn btn-success btn-sm" onclick="confirmAllDelivery();renderPendingDeliveryDashboard()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg>
+          Barchasini chiqim (${pendingList.length})
+        </button>`:''}
+      </div>
+      ${cashierRows}
+    </div>`:''}
+
+    <!-- So'nggi buyurtmalar -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Kutayotgan buyurtmalar</span>
+        <button class="btn btn-ghost btn-sm" onclick="goPage('orders')">Barchasini ko'rish →</button>
+      </div>
+      ${pendingList.length===0?`
+        <div style="text-align:center;padding:50px;color:var(--text3)">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.3;margin:0 auto 10px;display:block"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/></svg>
+          <div style="font-weight:600">Kutayotgan buyurtma yo'q</div>
+          <div style="font-size:12px;margin-top:4px">Barcha buyurtmalar chiqim qilingan</div>
+        </div>`:`
+      <div style="overflow:auto">
+        <table>
+          <thead><tr><th>ID</th><th>Sana</th><th>Kassir</th><th>Mahsulotlar</th><th>Summa</th><th></th></tr></thead>
+          <tbody>${recentRows}</tbody>
+        </table>
+      </div>`}
+    </div>`;
 }
 
 function renderOperationsMonthly(){
