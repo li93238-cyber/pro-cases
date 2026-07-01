@@ -395,7 +395,7 @@ body.theme-light .divider{background:#e2e8f0}
 
   <!-- CONTENT -->
   <div class="main">
-    <div class="topbar">
+    <div class="topbar" id="topbar" style="display:none">
       <div class="topbar-left">
         <button class="menu-btn" onclick="toggleSidebar()">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -577,6 +577,7 @@ function lsSet(key, val) {
 let users     = DEFAULT_USERS;
 let products  = DEFAULT_PRODUCTS;
 let orders    = DEFAULT_ORDERS;
+let pendingDelivery = []; // [{id, date, items, total, discount, payType, cashier, smenaId, branchId, partnerId, partnerNote, loyaltyId}]
 let expenses  = DEFAULT_EXPENSES;
 let categories= DEFAULT_CATEGORIES;
 let inventories = [];
@@ -624,10 +625,11 @@ function save(sections=null) {
   lsSet('debts', debts); lsSet('damages', damages);
   lsSet('payTypes', payTypes); lsSet('importHistory', importHistory);
   lsSet('purchaseOrders', purchaseOrders); lsSet('partners', partners); lsSet('branches', branches);
+  lsSet('pendingDelivery', pendingDelivery);
   lsSet('auditLog', auditLog); lsSet('loyaltyCards', loyaltyCards);
   lsSet('bankAccounts', bankAccounts); lsSet('appSettings', appSettings);
 
-  const toSave = sections || ['users','products','orders','expenses','categories','inventories','priceHistory','expCats','smenas','meta','debts','damages','payTypes','importHistory','purchaseOrders','partners','branches','auditLog','loyaltyCards','bankAccounts','appSettings'];
+  const toSave = sections || ['users','products','orders','expenses','categories','inventories','priceHistory','expCats','smenas','meta','debts','damages','payTypes','importHistory','purchaseOrders','partners','branches','auditLog','loyaltyCards','bankAccounts','appSettings','pendingDelivery'];
   toSave.forEach(s => { _savePending[s] = true; });
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(flushSave, 400);
@@ -654,6 +656,7 @@ async function flushSave() {
   if(pending.purchaseOrders)promises.push(gasCall('savePurchaseOrders', purchaseOrders));
   if(pending.partners)      promises.push(gasCall('savePartners', partners));
   if(pending.branches)      promises.push(gasCall('saveBranches', branches));
+  if(pending.pendingDelivery) promises.push(gasCall('savePendingDelivery', pendingDelivery));
   if(pending.auditLog)      promises.push(gasCall('saveAuditLog', auditLog));
   if(pending.loyaltyCards)  promises.push(gasCall('saveLoyaltyCards', loyaltyCards));
   if(pending.bankAccounts)  promises.push(gasCall('saveBankAccounts', bankAccounts));
@@ -835,7 +838,7 @@ const SESSION_ID=sessionStorage.getItem('pos_sid');
 const ALL_NAV_ITEMS=[
   {page:'dashboard',label:'Boshqaruv',icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',adminOnly:false},
   {page:'cashier',label:'Kassa',icon:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>',adminOnly:false},
-  {page:'orders',label:'Buyurtmalar',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/>',adminOnly:false},
+  {page:'orders',label:'Buyurtmalar / Topshirish',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/>',adminOnly:false},
   {page:'warehouse',label:'Ombor',icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>',adminOnly:false},
   {page:'inventory',label:'Inventarizatsiya',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><polyline points="9,11 12,14 22,4"/>',adminOnly:false},
   {page:'operations',label:'Kassa Amaliyot',icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',adminOnly:false},
@@ -1033,6 +1036,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         lsSet('inventories',inventories); lsSet('priceHistory',priceHistory); lsSet('smenas',smenas);
         lsSet('debts',debts); lsSet('damages',damages); lsSet('importHistory',importHistory);
         lsSet('purchaseOrders',purchaseOrders); lsSet('partners',partners); lsSet('branches',branches);
+        lsSet('pendingDelivery',pendingDelivery);
         lsSet('auditLog',auditLog); lsSet('loyaltyCards',loyaltyCards); lsSet('bankAccounts',bankAccounts);
         if(allData.appSettings) appSettings = {...appSettings, ...allData.appSettings};
         payTypes     = (allData.payTypes&&allData.payTypes.length) ? allData.payTypes : payTypes;
@@ -1247,7 +1251,9 @@ function startApp(){
     }
   }
   window._navUserId=currentUser.id;
-  // Mobil tabbarni ko'rsatish (faqat login dan keyin)
+  // Topbar va mobil tabbarni ko'rsatish
+  const tb=document.getElementById('topbar');
+  if(tb)tb.style.display='';
   const mtb=document.getElementById('mobile-tabbar');
   if(mtb)mtb.style.display='';
   // Supplier uchun maxsus ko'rinish — faqat zakazlar
@@ -1301,7 +1307,7 @@ async function manualRefresh(){
       switch(activePage){
         case'dashboard':renderDashboard();break;
         case'cashier':isMobile()?renderMobileCashier():renderCashier();break;
-        case'orders':renderOrders();break;
+        case'orders':renderDeliveryPage();break;
         case'warehouse':renderWarehouse();break;
         case'inventory':activeInv?renderActiveInventory():renderInventoryList();break;
         case'operations':renderOperations();break;
@@ -1327,6 +1333,8 @@ function doLogout(){
   currentUser=null;cart=[];autoMode=false;
   sessionStorage.removeItem('pos_session');
   sessionStorage.removeItem('pos_loginTime');
+  const tb=document.getElementById('topbar');
+  if(tb)tb.style.display='none';
   const mtb=document.getElementById('mobile-tabbar');
   if(mtb)mtb.style.display='none';
   document.getElementById('app').classList.add('hidden');
@@ -1352,7 +1360,7 @@ window.addEventListener('resize',()=>{
 const mobileMenuItems=[
   {page:'dashboard',label:'Boshqaruv',color:'#6366f1',icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>'},
   {page:'cashier',label:'Kassa',color:'#22c55e',icon:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>'},
-  {page:'orders',label:'Buyurtmalar',color:'#3b82f6',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>'},
+  {page:'orders',label:'Buyurtmalar / Topshirish',color:'#3b82f6',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>'},
   {page:'warehouse',label:'Ombor',color:'#f59e0b',icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>'},
   {page:'inventory',label:'Inventarizatsiya',color:'#8b5cf6',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9,12 11,14 15,10"/>'},
   {page:'operations',label:'Kassa Amaliyot',color:'#ef4444',icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>'},
@@ -2674,27 +2682,26 @@ function confirmPartnerSell(total,da){
 }
 
 function completeSell(total,da,partnerId,partnerNote){
-  const oid=genId('ORD');
-  orders.push({
-    id:oid,date:new Date().toISOString(),
-    items:cart.map(i=>({...i})),total,discount:da,
-    payType:currentPayType,cashier:currentUser.name,
-    returnedItems:[],smenaId:currentSmenaId,
-    partnerId:partnerId||null,partnerNote:partnerNote||'',
-    branchId:currentBranchId||null
-  });
+  const oid=genId('PND'); // PND = Pending Delivery
+  const newEntry={
+    id:oid, date:new Date().toISOString(),
+    items:cart.map(i=>({...i})), total, discount:da,
+    payType:currentPayType, cashier:currentUser.name,
+    returnedItems:[], smenaId:currentSmenaId,
+    partnerId:partnerId||null, partnerNote:partnerNote||'',
+    branchId:currentBranchId||null,
+    status:'pending' // pending = topshirilmagan
+  };
+  // Faqat ombordan ayiriladi — orders ga EMAS, pendingDelivery ga tushadi
+  pendingDelivery.push(newEntry);
   products=products.map(p=>{const ci=cart.find(i=>i.pid===p.id);return ci?{...p,stock:p.stock-ci.qty}:p;});
-  // Loyalti karta yangilash
-  if(window._activeLoyalty){
-    loyaltyCards=loyaltyCards.map(c=>c.id===window._activeLoyalty.id?{...c,totalSpent:c.totalSpent+total}:c);
-    window._activeLoyalty=null;
-  }
+  // Loyalti karta — chiqim bo'lganda yangilanadi, hozir emas
   // Audit log
-  addAudit('Sotuv', `${fmt(total)} — ${cart.length} mahsulot`,'Kassa');
+  addAudit('Sotuv (kutilmoqda)', `${fmt(total)} — ${cart.length} mahsulot`,'Kassa');
   save();
   const receipt={id:oid,items:cart.map(i=>({...i})),total,discount:da,payType:currentPayType,date:new Date().toISOString(),cashier:currentUser.name,partnerId};
   cart=[];
-  toast('Sotuv muvaffaqiyatli amalga oshirildi!');
+  toast('Sotuv amalga oshirildi! Mahsulot topshirishga yuborildi.');
   showReceipt(receipt);
   isMobile()?renderMobileCashier():renderCashier();
 }
@@ -2725,6 +2732,188 @@ function showReceipt(r){
 }
 
 // ===== ORDERS =====
+// ================================================================
+//  MAHSULOT TOPSHIRISH BO'LIMI
+// ================================================================
+let _deliveryTab = 'pending';
+
+function renderDeliveryPage(tab){
+  _deliveryTab = tab || _deliveryTab || 'pending';
+  document.getElementById('page-title').textContent = _deliveryTab==='pending'?'Mahsulot topshirish':'Buyurtmalar';
+  const pendingList = currentBranchId
+    ? pendingDelivery.filter(o=>o.branchId===currentBranchId)
+    : pendingDelivery;
+  const pendingTotal = pendingList.reduce((s,o)=>s+o.total,0);
+  const isAdmin = currentUser.role==='admin'||currentUser.role==='accountant'||hasPerm('operations');
+
+  const tabBar = `
+    <div style="display:flex;gap:0;background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:4px;margin-bottom:16px;width:fit-content">
+      <button onclick="renderDeliveryPage('pending')" style="padding:8px 20px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:all .18s;background:${_deliveryTab==='pending'?'var(--accent)':' transparent'};color:${_deliveryTab==='pending'?'#fff':'var(--text2)'}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg>
+        Mahsulot topshirish
+        ${pendingList.length>0?`<span style="background:${_deliveryTab==='pending'?'rgba(255,255,255,.25)':'#ef4444'};color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px">${pendingList.length}</span>`:''}
+      </button>
+      <button onclick="renderDeliveryPage('orders')" style="padding:8px 20px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:600;font-family:inherit;transition:all .18s;background:${_deliveryTab==='orders'?'var(--accent)':'transparent'};color:${_deliveryTab==='orders'?'#fff':'var(--text2)'}">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/></svg>
+        Buyurtmalar
+      </button>
+    </div>`;
+
+  if(_deliveryTab==='orders'){
+    document.getElementById('page-content').innerHTML=tabBar+'<div id="orders-inner"></div>';
+    renderOrders();
+    return;
+  }
+
+  const rows = pendingList.slice().reverse().map(o=>`
+    <tr>
+      <td style="font-weight:700;color:var(--accent2)">${o.id}</td>
+      <td style="font-size:12px;color:var(--text2)">${fmtDate(o.date)}</td>
+      <td style="font-weight:600">${o.cashier}</td>
+      <td style="font-size:12px">${o.items.map(i=>`<div>${i.name} × ${i.qty}</div>`).join('')}</td>
+      <td style="font-weight:700;color:var(--accent2)">${fmt(o.total)}</td>
+      <td>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${isAdmin?`
+          <button class="btn btn-success btn-sm" onclick="confirmDeliveryItem('${o.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20,6 9,17 4,12"/></svg>
+            Chiqim
+          </button>`:''} 
+          <button class="btn btn-ghost btn-sm" onclick="viewDeliveryDetail('${o.id}')">Ko'rish</button>
+          ${isAdmin?`
+          <button class="btn btn-danger btn-sm" onclick="cancelDeliveryItem('${o.id}')">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            Qaytarish
+          </button>`:''}
+        </div>
+      </td>
+    </tr>`).join('');
+
+  document.getElementById('page-content').innerHTML = tabBar + `
+    ${pendingList.length>0?`
+    <div class="stat-grid" style="margin-bottom:16px">
+      <div class="stat-card">
+        <div class="stat-card-header"><span class="stat-card-title">Kutayotgan buyurtmalar</span></div>
+        <div class="stat-value" style="color:#f59e0b">${pendingList.length} ta</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-header"><span class="stat-card-title">Jami summa</span></div>
+        <div class="stat-value" style="color:var(--accent2)">${fmt(pendingTotal)}</div>
+        <div style="font-size:11px;color:var(--text3)">Hali kassaga qo'shilmagan</div>
+      </div>
+    </div>`:''}
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Topshirilishi kutilayotgan buyurtmalar</span>
+        ${isAdmin&&pendingList.length>1?`
+        <button class="btn btn-success btn-sm" onclick="confirmAllDelivery()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg>
+          Barchasini chiqim (${pendingList.length})
+        </button>`:''}
+      </div>
+      ${pendingList.length===0?`
+        <div style="text-align:center;padding:60px 20px;color:var(--text3)">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.3;margin:0 auto 12px;display:block"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/></svg>
+          <div style="font-size:15px;font-weight:600">Kutayotgan buyurtma yo'q</div>
+          <div style="font-size:13px;margin-top:4px">Kassada sotuv amalga oshirilganda shu yerga tushadi</div>
+        </div>`:`
+      <div style="overflow:auto">
+        <table>
+          <thead><tr><th>ID</th><th>Sana</th><th>Kassir</th><th>Mahsulotlar</th><th>Summa</th><th>Amal</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`}
+    </div>`;
+}
+
+function viewDeliveryDetail(id){
+  const o=pendingDelivery.find(x=>x.id===id);
+  if(!o)return;
+  openModal(`Buyurtma: ${o.id}`,`
+    <div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:12px;color:var(--text2)">Kassir: ${o.cashier} • ${fmtDate(o.date)}</div>
+      <div style="font-size:20px;font-weight:800;color:#f59e0b;margin-top:4px">${fmt(o.total)}</div>
+      <div style="font-size:11px;color:#f59e0b;margin-top:2px">Hali kassaga qo'shilmagan</div>
+    </div>
+    <table>
+      <thead><tr><th>Mahsulot</th><th>Miqdor</th><th>Narx</th><th>Jami</th></tr></thead>
+      <tbody>${o.items.map(i=>`<tr>
+        <td>${badge(i.pid,'purple')} ${i.name}</td>
+        <td>${i.qty} ta</td>
+        <td>${fmt(i.price)}</td>
+        <td style="font-weight:700">${fmt(i.price*i.qty)}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    <button class="btn btn-ghost btn-md" onclick="closeModal()" style="margin-top:14px">Yopish</button>
+  `,460);
+}
+
+function confirmDeliveryItem(id){
+  const o=pendingDelivery.find(x=>x.id===id);
+  if(!o)return;
+  confirmDialog(`"${o.id}" buyurtmasini chiqim qilasizmi? ${fmt(o.total)} kassa qoldig'iga qo'shiladi.`,()=>{
+    const oid=genId('ORD');
+    orders.push({
+      id:oid, date:o.date, items:[...o.items],
+      total:o.total, discount:o.discount||0,
+      payType:o.payType, cashier:o.cashier,
+      returnedItems:[], smenaId:o.smenaId,
+      partnerId:o.partnerId||null, partnerNote:o.partnerNote||''  ,
+      branchId:o.branchId||null, deliveredFrom:o.id
+    });
+    if(o.loyaltyId){
+      loyaltyCards=loyaltyCards.map(c=>c.id===o.loyaltyId?{...c,totalSpent:c.totalSpent+o.total}:c);
+    }
+    pendingDelivery=pendingDelivery.filter(x=>x.id!==id);
+    save();
+    toast(`${fmt(o.total)} kassa qoldig'iga qo'shildi!`);
+    addAudit('Mahsulot chiqim',`${o.id} buyurtmaga o'tdi, ${fmt(o.total)}`,'Mahsulot topshirish');
+    renderDeliveryPage('pending');
+  });
+}
+
+function confirmAllDelivery(){
+  const pendingList=currentBranchId
+    ?pendingDelivery.filter(o=>o.branchId===currentBranchId)
+    :pendingDelivery;
+  if(!pendingList.length)return;
+  const totalSum=pendingList.reduce((s,o)=>s+o.total,0);
+  confirmDialog(`Barcha ${pendingList.length} ta buyurtmani chiqim qilasizmi? ${fmt(totalSum)} kassa qoldig'iga qo'shiladi.`,()=>{
+    pendingList.forEach(o=>{
+      orders.push({
+        id:genId('ORD'), date:o.date, items:[...o.items],
+        total:o.total, discount:o.discount||0,
+        payType:o.payType, cashier:o.cashier,
+        returnedItems:[], smenaId:o.smenaId,
+        partnerId:o.partnerId||null, partnerNote:o.partnerNote||'',
+        branchId:o.branchId||null, deliveredFrom:o.id
+      });
+    });
+    const ids=new Set(pendingList.map(o=>o.id));
+    pendingDelivery=pendingDelivery.filter(o=>!ids.has(o.id));
+    save();
+    toast(`${pendingList.length} ta buyurtma chiqim qilindi!`);
+    addAudit('Barchasini chiqim',`${pendingList.length} ta, ${fmt(totalSum)}`,'Mahsulot topshirish');
+    renderDeliveryPage('pending');
+  });
+}
+
+function cancelDeliveryItem(id){
+  const o=pendingDelivery.find(x=>x.id===id);
+  if(!o)return;
+  confirmDialog(`"${o.id}" buyurtmasini bekor qilasizmi? Mahsulotlar omborga qaytariladi.`,()=>{
+    products=products.map(p=>{
+      const item=o.items.find(i=>i.pid===p.id);
+      return item?{...p,stock:p.stock+item.qty}:p;
+    });
+    pendingDelivery=pendingDelivery.filter(x=>x.id!==id);
+    save();
+    toast('Buyurtma bekor qilindi. Mahsulotlar omborga qaytarildi.');
+    addAudit('Buyurtma bekor',`${o.id} bekor, omborga qaytdi`,'Mahsulot topshirish');
+    renderDeliveryPage('pending');
+  });
+}
+
 function renderOrders(opts={}){
   if(typeof opts==='string') opts={search:opts};
   const search=opts.search||'';
@@ -4112,6 +4301,16 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
         <div class="stat-value" style="color:#dc2626">${fmt(toDamage)}</div>
         <div class="stat-sub">Yaroqsiz mahsulotlar (savdo emas)</div>
       </div>
+      ${(()=>{
+        const pendingForOps=currentBranchId?pendingDelivery.filter(o=>o.branchId===currentBranchId):pendingDelivery;
+        const pendingSum=pendingForOps.reduce((s,o)=>s+o.total,0);
+        return pendingForOps.length>0?`
+        <div class="stat-card" style="border-color:#f59e0b;cursor:pointer" onclick="goPage('orders')">
+          <div class="stat-card-header"><span class="stat-card-title">Mahsulot topshirish</span><div class="stat-icon" style="background:#f59e0b20;color:#f59e0b"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/></svg></div></div>
+          <div class="stat-value" style="color:#f59e0b">${fmt(pendingSum)}</div>
+          <div class="stat-sub">${pendingForOps.length} ta buyurtma · Hali kassaga qo'shilmagan</div>
+        </div>`:'';
+      })()}
     </div>
     <div class="card" style="margin-bottom:16px">
       <div class="card-title" style="margin-bottom:16px">Kunlik foyda (oxirgi 7 kun)</div>
@@ -7046,6 +7245,32 @@ function openSmenaClose(){
   // Faqat joriy smenadagi buyurtmalar (va joriy filialga tegishlisi)
   const smenaOrders=orders.filter(o=>o.smenaId===currentSmenaId&&(currentBranchId?o.branchId===currentBranchId:true));
   const smenaRev=smenaOrders.reduce((s,o)=>s+o.total,0);
+
+  // Mahsulot topshirishda qolganlarni tekshirish
+  const pendingForSmena=pendingDelivery.filter(o=>o.smenaId===currentSmenaId&&(currentBranchId?o.branchId===currentBranchId:true));
+  if(pendingForSmena.length>0){
+    const pendingSum=pendingForSmena.reduce((s,o)=>s+o.total,0);
+    openModal('Smena yopib bo\'lmaydi',`
+      <div style="background:rgba(239,68,68,.08);border:2px solid rgba(239,68,68,.25);border-radius:12px;padding:16px;margin-bottom:16px;text-align:center">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" style="margin:0 auto 10px;display:block"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div style="font-size:15px;font-weight:700;color:#ef4444">Mahsulot topshirishda qoldiq bor!</div>
+        <div style="font-size:13px;color:var(--text2);margin-top:6px">
+          <b>${pendingForSmena.length} ta buyurtma</b> hali chiqim qilinmagan.<br>
+          Jami: <b style="color:#f59e0b">${fmt(pendingSum)}</b> kassa qoldig'iga qo'shilmagan.
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">
+        Smenani yopish uchun avval <b>Mahsulot topshirish</b> bo'limida barcha buyurtmalarni chiqim qiling yoki qaytaring.
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary btn-md" onclick="closeModal();goPage('orders')">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/></svg>
+          Topshirishga o'tish
+        </button>
+        <button class="btn btn-ghost btn-md" onclick="closeModal()">Yopish</button>
+      </div>`,440);
+    return;
+  }
   // Faqat joriy smenadagi harajatlar (smena_profit emas)
   const smenaExpenses=expenses.filter(e=>e.smenaId===currentSmenaId&&e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income');
   const smenaExp=smenaExpenses.reduce((s,e)=>s+e.amount,0);
