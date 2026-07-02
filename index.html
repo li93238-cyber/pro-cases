@@ -277,9 +277,11 @@ body.theme-light .divider{background:#e2e8f0}
 /* ===== NAV DRAG-AND-DROP ===== */
 .nav-item.dragging{opacity:.4;transform:scale(.97)}
 .nav-item.drag-over{border-top:2px solid var(--accent);margin-top:-1px}
-.nav-drag-handle{cursor:grab;color:var(--text3);opacity:0;transition:opacity .15s;padding:2px;display:flex;align-items:center;flex-shrink:0}
-.nav-item:hover .nav-drag-handle{opacity:.6}
-.nav-drag-handle:active{cursor:grabbing}
+.nav-drag-handle{cursor:grab;color:var(--text3);opacity:.4;transition:opacity .15s;padding:2px 4px;display:flex;align-items:center;flex-shrink:0}
+.nav-item:hover .nav-drag-handle{opacity:.8}
+.nav-drag-handle:active{cursor:grabbing;opacity:1}
+.nav-item.dragging{opacity:.4;background:rgba(99,102,241,.1) !important}
+.nav-item.drag-over{border-top:2px solid var(--accent) !important;margin-top:-1px}
 @media(max-width:768px){
   /* Mobile product card grid */
   .mob-product-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
@@ -386,6 +388,10 @@ body.theme-light .divider{background:#e2e8f0}
       <!-- Nav itemlar startApp da dinamik render qilinadi (drag-drop uchun) -->
     </nav>
     <div class="sidebar-bottom">
+      <button class="nav-item" onclick="openNavOrderModal()" style="margin-bottom:4px;opacity:.7">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/><polyline points="18,3 21,6 18,9" style="display:none"/></svg>
+        <span class="label" style="font-size:12px">Bo'limlar tartibini o'zgartirish</span>
+      </button>
       <button class="nav-item" onclick="doLogout()">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         <span class="label">Chiqish</span>
@@ -857,11 +863,21 @@ const ALL_NAV_ITEMS=[
 
 function getNavOrder(){
   const key='pos_nav_order_'+(window._navUserId||'default');
+  const allPages=ALL_NAV_ITEMS.map(i=>i.page);
   try{
     const saved=JSON.parse(localStorage.getItem(key)||'null');
-    if(saved&&Array.isArray(saved))return saved;
+    if(saved&&Array.isArray(saved)){
+      // Yangi itemlarni saqlangan tartibga qo'shamiz (o'rnini saqlab)
+      const merged=[...saved.filter(p=>allPages.includes(p))];
+      allPages.forEach(p=>{if(!merged.includes(p))merged.push(p);});
+      // Agar yangi item qo'shilgan bo'lsa — localStorage ni yangilaymiz
+      if(merged.length!==saved.length||merged.some((p,i)=>p!==saved[i])){
+        localStorage.setItem(key,JSON.stringify(merged));
+      }
+      return merged;
+    }
   }catch(e){}
-  return ALL_NAV_ITEMS.map(i=>i.page);
+  return allPages;
 }
 
 function saveNavOrder(order){
@@ -890,21 +906,91 @@ function renderSidebarNav(){
       style="display:${item.adminOnly&&currentUser&&currentUser.role!=='admin'?'none':'flex'}">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0">${item.icon}</svg>
       <span class="label" style="flex:1">${item.label}${item.page==='chat'?'<span id="nav-chat-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px">0</span>':''}${item.page==='delivery'?`<span id="nav-delivery-badge" style="${pendingDelivery.length>0?'':'display:none'};background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px">${pendingDelivery.length}</span>`:''}</span>
-      <span class="nav-drag-handle" title="Tartibni o'zgartirish (sudrab suring)">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+      <span class="nav-drag-handle" title="Sudrab tartibni o'zgartirish" onclick="event.stopPropagation()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="5" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="9" cy="19" r="1.2"/><circle cx="15" cy="5" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="15" cy="19" r="1.2"/></svg>
       </span>
     </button>`).join('');
+}
+
+// Nav tartib o'zgartirish — yuqori/pastga tugmalar bilan
+function moveNavItem(page, direction){
+  let order = getNavOrder();
+  const idx = order.indexOf(page);
+  if(idx === -1) return;
+  const newIdx = idx + direction;
+  if(newIdx < 0 || newIdx >= order.length) return;
+  order.splice(idx, 1);
+  order.splice(newIdx, 0, page);
+  saveNavOrder(order);
+  renderSidebarNav();
+  // Active holatni saqlash
+  const activePage = document.querySelector('#sidebar-nav .nav-item.active');
+  if(activePage && activePage.dataset.page){
+    document.querySelectorAll('#sidebar-nav .nav-item').forEach(el=>
+      el.classList.toggle('active', el.dataset.page===activePage.dataset.page));
+  }
+}
+
+function openNavOrderModal(){
+  let order = getNavOrder();
+  function renderList(){
+    return order.map((page,i)=>{
+      const item = ALL_NAV_ITEMS.find(x=>x.page===page);
+      if(!item) return '';
+      return `<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--glass);border:1px solid var(--glass-border);border-radius:8px;margin-bottom:4px">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;opacity:.5">${item.icon}</svg>
+        <span style="flex:1;font-size:13px;font-weight:500">${item.label}</span>
+        <div style="display:flex;gap:4px">
+          <button onclick="navModalMove(${i},-1)" ${i===0?'disabled style="opacity:.3"':''} style="width:28px;height:28px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass);cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18,15 12,9 6,15"/></svg>
+          </button>
+          <button onclick="navModalMove(${i},1)" ${i===order.length-1?'disabled style="opacity:.3"':''} style="width:28px;height:28px;border-radius:6px;border:1px solid var(--glass-border);background:var(--glass);cursor:pointer;color:var(--text);display:flex;align-items:center;justify-content:center">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6,9 12,15 18,9"/></svg>
+          </button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+  window._navOrder = order;
+  window.navModalMove = (idx, dir)=>{
+    const o = window._navOrder;
+    const ni = idx + dir;
+    if(ni<0||ni>=o.length) return;
+    o.splice(idx,1);
+    o.splice(ni,0,order[idx]);
+    order = o;
+    document.getElementById('nav-order-list').innerHTML = renderList();
+  };
+  openModal('Bo\'limlar tartibini o\'zgartirish',`
+    <div id="nav-order-list">${renderList()}</div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn btn-primary btn-md" onclick="
+        saveNavOrder(window._navOrder);
+        renderSidebarNav();
+        closeModal();
+        toast('Tartib saqlandi!');
+      ">Saqlash</button>
+      <button class="btn btn-ghost btn-md" onclick="
+        saveNavOrder(ALL_NAV_ITEMS.map(i=>i.page));
+        renderSidebarNav();
+        closeModal();
+        toast('Tartib tiklandi!');
+      ">Asl tartib</button>
+      <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
+    </div>`,420);
 }
 
 // Drag-drop handlers
 let _dragSrcPage=null;
 function navDragStart(e,page){
   _dragSrcPage=page;
-  e.target.classList.add('dragging');
+  e.currentTarget.classList.add('dragging');
   e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',page);
 }
 function navDragOver(e){
   e.preventDefault();
+  e.stopPropagation();
   e.dataTransfer.dropEffect='move';
   e.currentTarget.classList.add('drag-over');
 }
@@ -913,27 +999,28 @@ function navDragLeave(e){
 }
 function navDrop(e,targetPage){
   e.preventDefault();
+  e.stopPropagation();
   e.currentTarget.classList.remove('drag-over');
-  if(!_dragSrcPage||_dragSrcPage===targetPage)return;
-  const order=getNavOrder();
-  const from=order.indexOf(_dragSrcPage);
-  const to=order.indexOf(targetPage);
-  if(from>=0&&to>=0){
-    order.splice(from,1);
-    order.splice(to,0,_dragSrcPage);
-    saveNavOrder(order);
-    renderSidebarNav();
-    // Active state ni qayta belgilash
-    const active=document.querySelector('.page-content')&&document.getElementById('page-title');
-    if(active){
-      const curPage=Object.entries(pageTitles).find(([k,v])=>v===active.textContent);
-      if(curPage)document.querySelectorAll('#sidebar-nav .nav-item').forEach(el=>el.classList.toggle('active',el.dataset.page===curPage[0]));
-    }
-    toast('Tartib saqlandi!');
-  }
+  const srcPage=_dragSrcPage||e.dataTransfer.getData('text/plain');
+  if(!srcPage||srcPage===targetPage)return;
+  let order=getNavOrder();
+  // Barcha itemlarni tartibga qo'shamiz (yangi itemlar ham)
+  ALL_NAV_ITEMS.forEach(i=>{if(!order.includes(i.page))order.push(i.page);});
+  let from=order.indexOf(srcPage);
+  let to=order.indexOf(targetPage);
+  if(from===-1||to===-1||from===to)return;
+  order.splice(from,1);
+  order.splice(to,0,srcPage);
+  saveNavOrder(order);
+  _dragSrcPage=null;
+  renderSidebarNav();
+  // Active ni saqlash
+  document.querySelectorAll('#sidebar-nav .nav-item').forEach(el=>
+    el.classList.toggle('active',el.dataset.page===window._currentPage));
+  toast('Tartib saqlandi!');
 }
 function navDragEnd(e){
-  e.target.classList.remove('dragging');
+  e.currentTarget.classList.remove('dragging');
   document.querySelectorAll('#sidebar-nav .nav-item').forEach(el=>el.classList.remove('drag-over'));
   _dragSrcPage=null;
 }
@@ -1443,6 +1530,7 @@ const pageTitles={dashboard:'Boshqaruv',cashier:'Kassa',orders:'Buyurtmalar',war
 const isMobile=()=>window.innerWidth<=768;
 
 function goPage(page){
+  window._currentPage=page;
   if(page==='users'&&currentUser.role!=='admin')return;
   if(page!=='users'&&page!=='dashboard'&&page!=='chat'&&page!=='debts'&&!hasPerm(page))return;
   if(page!=='chat') chatOnPage=false;
