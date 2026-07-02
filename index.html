@@ -1116,6 +1116,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         auditLog     = allData.auditLog     || lsGet('auditLog', []);
         loyaltyCards = allData.loyaltyCards || lsGet('loyaltyCards', []);
         bankAccounts = allData.bankAccounts || lsGet('bankAccounts', []);
+        pendingDelivery = allData.pendingDelivery || lsGet('pendingDelivery', []);
         if(allData.appSettings) appSettings={...appSettings,...allData.appSettings};
         payTypes=(allData.payTypes&&allData.payTypes.length)?allData.payTypes:payTypes;
         // GAS dan kelgan ma'lumotlarni localStorage cache ga ham yozamiz
@@ -1269,6 +1270,7 @@ async function doLogin(){
         importHistory=allData.importHistory||importHistory;
         purchaseOrders=allData.purchaseOrders||purchaseOrders;
         partners=allData.partners||partners; branches=allData.branches||branches;
+        pendingDelivery=allData.pendingDelivery||lsGet('pendingDelivery',[]);
         payTypes=(allData.payTypes&&allData.payTypes.length)?allData.payTypes:payTypes;
         if((allData.meta||{}).currentSmenaId) currentSmenaId=allData.meta.currentSmenaId;
         // localStorage cache ga ham yozamiz
@@ -1276,11 +1278,14 @@ async function doLogin(){
         lsSet('expenses',expenses); lsSet('smenas',smenas); lsSet('debts',debts);
         lsSet('importHistory',importHistory); lsSet('purchaseOrders',purchaseOrders);
         lsSet('partners',partners); lsSet('branches',branches);
+        lsSet('pendingDelivery',pendingDelivery);
       }catch(gasErr){
         // GAS ishlamasa — lokal foydalanuvchilardan qidirish
         console.warn('GAS login failed, trying local:', gasErr.message);
         u = users.find(x=>x.login===l&&x.password===p);
         if(!u) throw new Error('Login yoki parol noto\'g\'ri!');
+        // localStorage cache dan pendingDelivery ni ham yuklaymiz
+        pendingDelivery = lsGet('pendingDelivery', pendingDelivery);
       }
     } else {
       // GAS URL yo'q — faqat lokal
