@@ -5492,6 +5492,7 @@ function renderAnalytics(){
           <button class="btn btn-primary btn-sm" onclick="showAnalyticsTab('rating')" id="atab-rating"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>Sotuv reytingi</button>
           <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('cashier')" id="atab-cashier"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Kassirlar</button>
           <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('margin')" id="atab-margin"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Margin</button>
+          <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('smena')" id="atab-smena"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>Smena margin</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
           <span style="font-size:12px;color:var(--text2)">Davr:</span>
@@ -5514,7 +5515,7 @@ function refreshAnalytics(){
 
 
 function showAnalyticsTab(tab){
-  ['rating','cashier','margin'].forEach(t=>{
+  ['rating','cashier','margin','smena'].forEach(t=>{
     const btn=document.getElementById('atab-'+t);
     if(btn){btn.className=t===tab?'btn btn-primary btn-sm':'btn btn-ghost btn-sm';}
   });
@@ -5645,6 +5646,124 @@ function showAnalyticsTab(tab){
       <table><thead><tr><th>#</th><th>Mahsulot</th><th>Narx (tan → sotish)</th><th>Margin %</th><th>Jami foyda</th><th>Sotilib</th></tr></thead>
       <tbody>${rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:var(--text3)">Ma\'lumot yo\'q</td></tr>'}</tbody></table>
     </div>`;
+  }
+
+  else if(tab==='smena'){
+    // Smena margin hisoblash
+    const closedSmenas=[...smenas].filter(s=>s.closed);
+    // Sana filtri
+    let filtSmenas=closedSmenas;
+    if(fromVal){const fd=new Date(fromVal+'T00:00:00');filtSmenas=filtSmenas.filter(s=>new Date(s.closeTime||s.openTime)>=fd);}
+    if(toVal){const td=new Date(toVal+'T23:59:59');filtSmenas=filtSmenas.filter(s=>new Date(s.closeTime||s.openTime)<=td);}
+
+    // Har smena uchun tan narx va savdo summalarini hisoblash
+    const smenaStats=filtSmenas.map(s=>{
+      const smenaOrders=orders.filter(o=>o.smenaId===s.id);
+      // Savdo summasi — qaytarilgan mahsulotlar ayiriladi
+      const savdo=smenaOrders.reduce((sum,o)=>{
+        const retAmt=(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0);
+        return sum+(o.total-retAmt);
+      },0);
+      // Tan narx — faqat sof sotilgan (qaytarilmagan) mahsulotlar
+      let tanNarx=0;
+      smenaOrders.forEach(o=>{
+        (o.items||[]).forEach(item=>{
+          const p=products.find(x=>x.id===item.pid);
+          const cost=p&&p.cost&&p.cost>0?p.cost:0;
+          const retQty=(o.returnedItems||[]).filter(r=>r.pid===item.pid).reduce((s,r)=>s+r.qty,0);
+          const netQty=item.qty-retQty;
+          if(netQty>0)tanNarx+=cost*netQty;
+        });
+      });
+      // To'liq qaytarilgan buyurtmalarni hisoblamaymiz
+      const activeOrders=smenaOrders.filter(o=>{
+        const allRet=o.items.every(item=>(o.returnedItems||[]).filter(r=>r.pid===item.pid).reduce((s,r)=>s+r.qty,0)>=item.qty);
+        return !allRet;
+      });
+      const foyda=savdo-tanNarx;
+      const margin=savdo>0?Math.round(foyda/savdo*100):0;
+      const tanNarxMargini=tanNarx>0?Math.round(foyda/tanNarx*100):0;
+      return {s,savdo,tanNarx,foyda,margin,tanNarxMargini,orderCount:activeOrders.length};
+    }).filter(x=>x.savdo>0||x.orderCount>0);
+
+    // Jami
+    const totalSavdo=smenaStats.reduce((s,x)=>s+x.savdo,0);
+    const totalTanNarx=smenaStats.reduce((s,x)=>s+x.tanNarx,0);
+    const totalFoyda=totalSavdo-totalTanNarx;
+    const totalMargin=totalSavdo>0?Math.round(totalFoyda/totalSavdo*100):0;
+
+    const rows=smenaStats.slice().reverse().map((x,i)=>{
+      const {s,savdo,tanNarx,foyda,margin,tanNarxMargini,orderCount}=x;
+      const marginColor=margin>=30?'#4ade80':margin>=15?'#fbbf24':'#f87171';
+      return`<tr>
+        <td style="font-size:11px;color:var(--text3)">${s.id}</td>
+        <td style="font-size:12px;color:var(--text2)">${fmtDate(s.closeTime||s.openTime)}</td>
+        <td style="font-weight:600;color:var(--text2)">${s.closeBy||s.by||'—'}</td>
+        <td style="font-weight:700;color:var(--accent2)">${fmt(savdo)}</td>
+        <td style="color:var(--text2)">${tanNarx>0?fmt(tanNarx):'<span style="color:var(--text3);font-size:11px">Kiritilmagan</span>'}</td>
+        <td style="font-weight:700;color:${marginColor}">${tanNarx>0?margin+'%':'—'}</td>
+        <td style="font-weight:700;color:${foyda>=0?'#4ade80':'#f87171'}">${tanNarx>0?fmt(foyda):'—'}</td>
+        <td style="font-size:12px;color:var(--text2)">${orderCount} ta</td>
+      </tr>`;}).join('');
+
+    const hasCost=totalTanNarx>0;
+    box.innerHTML=`
+      <!-- Jami stat kartalar -->
+      <div class="stat-grid" style="margin-bottom:16px">
+        <div class="stat-card">
+          <div class="stat-card-header"><span class="stat-card-title">Jami savdo</span></div>
+          <div class="stat-value" style="color:var(--accent2)">${fmt(totalSavdo)}</div>
+          <div class="stat-sub">${smenaStats.length} ta smena</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-header"><span class="stat-card-title">Jami tan narx</span></div>
+          <div class="stat-value" style="color:#f59e0b">${hasCost?fmt(totalTanNarx):'—'}</div>
+          <div class="stat-sub">${hasCost?'Sotilgan mahsulotlar tannarxi':'Mahsulotlarga kirim narxi kiritilmagan'}</div>
+        </div>
+        <div class="stat-card" style="${hasCost?'border-color:'+(totalMargin>=30?'#4ade80':totalMargin>=15?'#fbbf24':'#f87171'):''}">
+          <div class="stat-card-header"><span class="stat-card-title">Margin %</span></div>
+          <div class="stat-value" style="color:${hasCost?(totalMargin>=30?'#4ade80':totalMargin>=15?'#fbbf24':'#f87171'):'var(--text3)'}">${hasCost?totalMargin+'%':'—'}</div>
+          <div class="stat-sub">${hasCost?'Savdodan foydaning ulushi':'—'}</div>
+        </div>
+        <div class="stat-card" style="${hasCost?'border-color:'+(totalFoyda>=0?'#4ade80':'#f87171'):''}">
+          <div class="stat-card-header"><span class="stat-card-title">Sof foyda</span></div>
+          <div class="stat-value" style="color:${hasCost?(totalFoyda>=0?'#4ade80':'#f87171'):'var(--text3)'}">${hasCost?fmt(totalFoyda):'—'}</div>
+          <div class="stat-sub">${hasCost?'Savdo - Tan narx':'—'}</div>
+        </div>
+      </div>
+
+      <!-- Smena bo'yicha jadval -->
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>Smena margin — ${periodLabel}</span>
+          ${badge(smenaStats.length+' ta smena','blue')}
+        </div>
+        ${smenaStats.length===0?`
+          <div style="text-align:center;padding:40px;color:var(--text3)">
+            <div style="font-weight:600">Yopilgan smena topilmadi</div>
+            <div style="font-size:12px;margin-top:4px">Davr filtri yoki smena tarixini tekshiring</div>
+          </div>`:`
+        <div style="overflow:auto">
+          <table>
+            <thead><tr>
+              <th>Smena ID</th><th>Sana</th><th>Kim yopdi</th>
+              <th>Savdo</th><th>Tan narx</th><th>Margin %</th><th>Sof foyda</th><th>Buyurtmalar</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+            <tfoot><tr style="background:rgba(99,102,241,.06);font-weight:700">
+              <td colspan="3" style="padding:10px 12px">JAMI (${smenaStats.length} smena)</td>
+              <td style="color:var(--accent2)">${fmt(totalSavdo)}</td>
+              <td style="color:#f59e0b">${hasCost?fmt(totalTanNarx):'—'}</td>
+              <td style="color:${totalMargin>=30?'#4ade80':totalMargin>=15?'#fbbf24':'#f87171'}">${hasCost?totalMargin+'%':'—'}</td>
+              <td style="color:${totalFoyda>=0?'#4ade80':'#f87171'}">${hasCost?fmt(totalFoyda):'—'}</td>
+              <td>${smenaStats.reduce((s,x)=>s+x.orderCount,0)} ta</td>
+            </tr></tfoot>
+          </table>
+        </div>`}
+        ${!hasCost?`<div style="margin:12px 16px;padding:10px 14px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;font-size:12px;color:#f59e0b">
+          <b>Eslatma:</b> Mahsulotlarga kirim narxi (tan narx) kiritilmagan. Ombor → Mahsulot tahrirlash → "Kirim narxi" ga kiriting.
+        </div>`:''}
+      </div>`;
   }
 }
 
@@ -7468,7 +7587,11 @@ function openSmenaClose(){
   const smena=getCurrentSmena();
   // Faqat joriy smenadagi buyurtmalar (va joriy filialga tegishlisi)
   const smenaOrders=orders.filter(o=>o.smenaId===currentSmenaId&&(currentBranchId?o.branchId===currentBranchId:true));
-  const smenaRev=smenaOrders.reduce((s,o)=>s+o.total,0);
+  // Qaytarilgan mahsulotlarni hisobdan chiqaramiz
+  const smenaRev=smenaOrders.reduce((s,o)=>{
+    const retAmt=(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0);
+    return s+(o.total-retAmt);
+  },0);
 
   // Mahsulot topshirishda qolganlarni tekshirish
   const pendingForSmena=pendingDelivery.filter(o=>o.smenaId===currentSmenaId&&(currentBranchId?o.branchId===currentBranchId:true));
@@ -7505,9 +7628,12 @@ function openSmenaClose(){
       Ochilgan: <b>${openTime}</b>
     </div>
     <div class="smena-stat">
-      <div style="font-size:13px;color:#64748b;margin-bottom:6px">Joriy smena savdosi</div>
+      <div style="font-size:13px;color:#64748b;margin-bottom:6px">Joriy smena savdosi (sof)</div>
       <div style="font-size:28px;font-weight:800;color:#6366f1">${fmt(smenaRev)}</div>
-      <div style="font-size:12px;color:#94a3b8;margin-top:4px">${smenaOrders.length} ta buyurtma</div>
+      <div style="font-size:12px;color:#94a3b8;margin-top:4px">
+        ${smenaOrders.length} ta buyurtma
+        ${(()=>{const ret=smenaOrders.filter(o=>(o.returnedItems||[]).length>0);const retAmt=smenaOrders.reduce((s,o)=>(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0)+s,0);return ret.length>0?` · <span style="color:#f87171">-${fmt(retAmt)} qaytarilgan (${ret.length} ta)</span>`:''})()}
+      </div>
     </div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
       <div style="background:#f0fdf4;border-radius:10px;padding:12px;text-align:center">
