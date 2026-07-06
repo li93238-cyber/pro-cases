@@ -274,7 +274,32 @@ body.theme-light .divider{background:#e2e8f0}
 
 /* Warehouse sticky toolbar */
 .wh-sticky-toolbar{position:sticky;top:58px;z-index:50;background:var(--bg);backdrop-filter:blur(16px);border-bottom:1px solid var(--glass-border);padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
-/* ===== NAV DRAG-AND-DROP ===== */
+/* ===== ANIMATSIYALAR ===== */
+
+/* Sahifa o'tish */
+@keyframes pageIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.page-animate{animation:pageIn .22s cubic-bezier(.4,0,.2,1) both}
+
+/* Stat karta counter */
+@keyframes countUp{from{opacity:0;transform:scale(.85)}to{opacity:1;transform:scale(1)}}
+.stat-value.counting{animation:countUp .5s cubic-bezier(.34,1.56,.64,1) both}
+
+/* Skeleton loading */
+@keyframes shimmer{0%{background-position:-400px 0}100%{background-position:400px 0}}
+.skeleton{background:linear-gradient(90deg,var(--glass) 25%,rgba(255,255,255,.08) 50%,var(--glass) 75%);background-size:800px 100%;animation:shimmer 1.4s ease-in-out infinite;border-radius:8px}
+
+/* Confetti */
+@keyframes confettiFall{0%{transform:translateY(-10px) rotate(0deg);opacity:1}100%{transform:translateY(100vh) rotate(720deg);opacity:0}}
+.confetti-piece{position:fixed;width:10px;height:10px;pointer-events:none;z-index:99998;border-radius:2px}
+
+/* Toast pastdan */
+@keyframes toastUp{from{opacity:0;transform:translateX(60px) scale(.9)}to{opacity:1;transform:translateX(0) scale(1)}}
+@keyframes toastDown{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(60px)}}
+
+/* Solishtirma badge */
+@keyframes badgePop{0%{transform:scale(0)}60%{transform:scale(1.15)}100%{transform:scale(1)}}
+.compare-badge{animation:badgePop .3s cubic-bezier(.34,1.56,.64,1) both}
 .nav-item.dragging{opacity:.4;transform:scale(.97)}
 .nav-item.drag-over{border-top:2px solid var(--accent);margin-top:-1px}
 .nav-drag-handle{cursor:grab;color:var(--text3);opacity:.4;transition:opacity .15s;padding:2px 4px;display:flex;align-items:center;flex-shrink:0}
@@ -781,6 +806,250 @@ function confirmDialog(msg,onOk){
 }
 
 
+// ===== STAT KARTA COUNTER ANIMATSIYA =====
+function animateCounters(){
+  requestAnimationFrame(()=>{
+    document.querySelectorAll('.stat-value[data-target]').forEach(el=>{
+      const target=parseFloat(el.dataset.target)||0;
+      const duration=600;
+      const start=Date.now();
+      const startVal=0;
+      const isPrice=el.dataset.type==='price';
+      const isSep=el.dataset.type==='sep';
+      function update(){
+        const elapsed=Date.now()-start;
+        const progress=Math.min(elapsed/duration,1);
+        const ease=1-Math.pow(1-progress,3);
+        const current=Math.round(startVal+(target-startVal)*ease);
+        if(isPrice){
+          el.textContent=current.toLocaleString('uz-UZ')+' so\'m';
+        } else if(isSep){
+          el.textContent=current.toLocaleString('uz-UZ');
+        } else {
+          el.textContent=current;
+        }
+        if(progress<1)requestAnimationFrame(update);
+      }
+      el.classList.add('counting');
+      update();
+    });
+  });
+}
+
+// ===== CONFETTI =====
+function showConfetti(){
+  const colors=['#6366f1','#22c55e','#f59e0b','#ef4444','#0ea5e9','#a855f7','#ec4899'];
+  for(let i=0;i<60;i++){
+    setTimeout(()=>{
+      const el=document.createElement('div');
+      el.className='confetti-piece';
+      el.style.cssText=`
+        left:${Math.random()*100}vw;
+        top:-10px;
+        background:${colors[Math.floor(Math.random()*colors.length)]};
+        width:${6+Math.random()*8}px;
+        height:${6+Math.random()*8}px;
+        border-radius:${Math.random()>0.5?'50%':'2px'};
+        animation:confettiFall ${1.5+Math.random()*2}s ease-in forwards;
+      `;
+      document.body.appendChild(el);
+      setTimeout(()=>el.remove(),4000);
+    },i*30);
+  }
+}
+
+// ===== KUNLIK AVTOMATIK HISOBOT =====
+let _dailyReportTimer=null;
+// ===== AVATAR INITIALS RANG =====
+function avatarColor(name){
+  const colors=['#6366f1','#22c55e','#f59e0b','#ef4444','#0ea5e9','#a855f7','#ec4899','#14b8a6','#f97316','#84cc16'];
+  let hash=0;
+  for(let i=0;i<(name||'').length;i++) hash=(hash<<5)-hash+name.charCodeAt(i);
+  return colors[Math.abs(hash)%colors.length];
+}
+
+// ===== HAPTIC FEEDBACK =====
+function haptic(type='light'){
+  if(!navigator.vibrate)return;
+  if(type==='light') navigator.vibrate(10);
+  else if(type==='medium') navigator.vibrate(25);
+  else if(type==='success') navigator.vibrate([10,50,10]);
+  else if(type==='error') navigator.vibrate([30,30,30]);
+}
+
+// ===== SWIPE GESTURES (mobil) =====
+let _swipeStartX=0,_swipeStartY=0,_swipeActive=false;
+const NAV_PAGES_ORDER=['dashboard','cashier','delivery','orders','warehouse','inventory','operations','users','partners','settings'];
+
+function initSwipeGestures(){
+  const main=document.getElementById('main-content')||document.querySelector('.main');
+  if(!main)return;
+  main.addEventListener('touchstart',e=>{
+    _swipeStartX=e.touches[0].clientX;
+    _swipeStartY=e.touches[0].clientY;
+    _swipeActive=true;
+  },{passive:true});
+  main.addEventListener('touchend',e=>{
+    if(!_swipeActive)return;
+    _swipeActive=false;
+    const dx=e.changedTouches[0].clientX-_swipeStartX;
+    const dy=e.changedTouches[0].clientY-_swipeStartY;
+    // Gorizontal swipe (vertikal emas)
+    if(Math.abs(dx)<60||Math.abs(dy)>Math.abs(dx)*0.8)return;
+    const cur=window._currentPage||'dashboard';
+    const pages=NAV_PAGES_ORDER.filter(p=>{
+      const item=ALL_NAV_ITEMS.find(x=>x.page===p);
+      return item&&(!item.adminOnly||currentUser.role==='admin');
+    });
+    const idx=pages.indexOf(cur);
+    if(idx===-1)return;
+    if(dx<-60&&idx<pages.length-1){haptic('light');goPage(pages[idx+1]);}
+    else if(dx>60&&idx>0){haptic('light');goPage(pages[idx-1]);}
+  },{passive:true});
+}
+
+// ===== PULL TO REFRESH =====
+let _ptrStartY=0,_ptrActive=false,_ptrTriggered=false;
+function initPullToRefresh(){
+  let indicator=document.getElementById('ptr-indicator');
+  if(!indicator){
+    indicator=document.createElement('div');
+    indicator.id='ptr-indicator';
+    indicator.className='ptr-indicator';
+    indicator.innerHTML='<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="1,4 1,10 7,10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></svg>';
+    document.body.appendChild(indicator);
+  }
+  const el=document.scrollingElement||document.documentElement;
+  document.addEventListener('touchstart',e=>{
+    if(el.scrollTop===0){_ptrStartY=e.touches[0].clientY;_ptrActive=true;_ptrTriggered=false;}
+  },{passive:true});
+  document.addEventListener('touchmove',e=>{
+    if(!_ptrActive)return;
+    const dy=e.touches[0].clientY-_ptrStartY;
+    if(dy>60&&!_ptrTriggered){indicator.classList.add('visible');indicator.style.transform='translateX(-50%) rotate(180deg)';};
+  },{passive:true});
+  document.addEventListener('touchend',e=>{
+    if(!_ptrActive)return;
+    _ptrActive=false;
+    const dy=e.changedTouches[0].clientY-_ptrStartY;
+    indicator.classList.remove('visible');
+    indicator.style.transform='translateX(-50%)';
+    if(dy>80){
+      haptic('medium');
+      indicator.style.top='12px';
+      setTimeout(()=>{indicator.style.top='-60px';manualRefresh();},300);
+    }
+  },{passive:true});
+}
+
+// ===== HAFTALIK SPARKLINE =====
+function renderSparkline(containerId){
+  const el=document.getElementById(containerId);
+  if(!el)return;
+  const days=[];
+  for(let i=6;i>=0;i--){
+    const d=new Date();
+    d.setDate(d.getDate()-i);
+    const ds=d.toDateString();
+    const rev=orders.filter(o=>new Date(o.date).toDateString()===ds).reduce((s,o)=>s+o.total,0);
+    days.push({label:d.toLocaleDateString('uz-UZ',{weekday:'short'}),rev});
+  }
+  const max=Math.max(...days.map(d=>d.rev),1);
+  el.innerHTML=`<div class="sparkline-wrap">${days.map(d=>`
+    <div style="display:flex;flex-direction:column;align-items:center;gap:2px;flex:1">
+      <div class="sparkline-bar" style="height:${Math.max(4,Math.round(d.rev/max*36))}px" title="${d.label}: ${fmt(d.rev)}"></div>
+      <div style="font-size:9px;color:var(--text3)">${d.label}</div>
+    </div>`).join('')}</div>`;
+}
+
+// ===== SMENA PROGRESS BAR =====
+function renderSmenaProgress(target=1000000){
+  const smenaOrders=orders.filter(o=>o.smenaId===currentSmenaId);
+  const rev=smenaOrders.reduce((s,o)=>s+o.total,0);
+  const pct=Math.min(Math.round(rev/target*100),100);
+  return`<div class="smena-progress-wrap">
+    <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
+      <span style="color:var(--text3)">Smena maqsadi</span>
+      <span style="font-weight:700;color:var(--accent2)">${pct}% — ${fmt(rev)} / ${fmt(target)}</span>
+    </div>
+    <div class="smena-progress-bar">
+      <div class="smena-progress-fill" style="width:${pct}%"></div>
+    </div>
+  </div>`;
+}
+
+// ===== MAHSULOT RASMI OMBORda =====
+// (openProductImageModal allaqachon bor, bu yerda img preview uchun helper)
+function getProductImg(pid,size=32){
+  const p=products.find(x=>x.id===pid);
+  if(p&&p.image) return`<img src="${p.image}" style="width:${size}px;height:${size}px;object-fit:cover;border-radius:6px;flex-shrink:0">`;
+  const color=avatarColor(p?p.name:pid);
+  return`<div style="width:${size}px;height:${size}px;border-radius:6px;background:${color}22;border:1px solid ${color}44;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:${Math.round(size*.4)}px;font-weight:700;color:${color}">${(p?p.name:pid).charAt(0)}</div>`;
+}
+
+function startDailyReportScheduler(){
+  clearTimeout(_dailyReportTimer);
+  function scheduleNext(){
+    const now=new Date();
+    // Har kuni 23:58 da hisobot
+    const next=new Date(now);
+    next.setHours(23,58,0,0);
+    if(next<=now) next.setDate(next.getDate()+1);
+    const delay=next-now;
+    _dailyReportTimer=setTimeout(()=>{
+      generateDailyReport();
+      setTimeout(scheduleNext,60000); // keyingi kun uchun
+    },delay);
+  }
+  scheduleNext();
+}
+
+function generateDailyReport(){
+  if(!currentUser)return;
+  const today=new Date().toDateString();
+  const todayOrders=orders.filter(o=>new Date(o.date).toDateString()===today);
+  const todayExp=expenses.filter(e=>new Date(e.date).toDateString()===today&&e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income');
+  const revenue=todayOrders.reduce((s,o)=>{
+    const ret=(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0);
+    return s+(o.total-ret);
+  },0);
+  const expTotal=todayExp.reduce((s,e)=>s+e.amount,0);
+  const profit=revenue-expTotal;
+  const topProduct=(()=>{
+    const cnt={};
+    todayOrders.forEach(o=>(o.items||[]).forEach(i=>{cnt[i.name]=(cnt[i.name]||0)+i.qty;}));
+    const top=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+    return top?top[0]+' ('+top[1]+' ta)':'—';
+  })();
+  // Modal sifatida ko'rsatish
+  openModal('Kunlik hisobot — '+new Date().toLocaleDateString('uz-UZ'),`
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:13px;color:var(--text3)">${new Date().toLocaleDateString('uz-UZ',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}</div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Tushum</span></div>
+        <div class="stat-value" style="color:var(--accent2)">${fmt(revenue)}</div>
+        <div class="stat-sub">${todayOrders.length} ta sotuv</div></div>
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Harajat</span></div>
+        <div class="stat-value" style="color:#f87171">${fmt(expTotal)}</div></div>
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Sof foyda</span></div>
+        <div class="stat-value" style="color:${profit>=0?'#4ade80':'#f87171'}">${profit>=0?'+':''}${fmt(profit)}</div></div>
+    </div>
+    <div style="padding:12px;background:var(--glass);border-radius:10px;margin-top:12px;font-size:13px">
+      <span style="color:var(--text3)">Eng ko'p sotiladigan:</span>
+      <span style="font-weight:700;color:var(--text);margin-left:8px">${topProduct}</span>
+    </div>
+    <button class="btn btn-primary btn-md w-full" style="justify-content:center;margin-top:14px" onclick="closeModal()">OK</button>
+  `,420);
+  // localStorage ga saqlaymiz
+  try{
+    const reports=JSON.parse(localStorage.getItem('pos_daily_reports')||'[]');
+    reports.unshift({date:new Date().toISOString(),revenue,expTotal,profit,orders:todayOrders.length,topProduct});
+    if(reports.length>90)reports.splice(90);
+    localStorage.setItem('pos_daily_reports',JSON.stringify(reports));
+  }catch(e){}
+}
+
 function getCurrentSmena(){
   return smenas.find(s=>s.id===currentSmenaId)||null;
 }
@@ -867,13 +1136,15 @@ function getNavOrder(){
   try{
     const saved=JSON.parse(localStorage.getItem(key)||'null');
     if(saved&&Array.isArray(saved)){
-      // Yangi itemlarni saqlangan tartibga qo'shamiz (o'rnini saqlab)
-      const merged=[...saved.filter(p=>allPages.includes(p))];
+      // Duplikatlarni olib tashlaymiz
+      const seen=new Set();
+      const deduped=saved.filter(p=>{if(seen.has(p))return false;seen.add(p);return true;});
+      // Faqat mavjud itemlarni saqlaymiz
+      const merged=deduped.filter(p=>allPages.includes(p));
+      // Yangi itemlarni oxiriga qo'shamiz
       allPages.forEach(p=>{if(!merged.includes(p))merged.push(p);});
-      // Agar yangi item qo'shilgan bo'lsa — localStorage ni yangilaymiz
-      if(merged.length!==saved.length||merged.some((p,i)=>p!==saved[i])){
-        localStorage.setItem(key,JSON.stringify(merged));
-      }
+      // Agar o'zgargan bo'lsa localStorage ni yangilaymiz
+      localStorage.setItem(key,JSON.stringify(merged));
       return merged;
     }
   }catch(e){}
@@ -1046,8 +1317,22 @@ function getOnlineUsers(){
 setInterval(()=>{if(currentUser)updateOnline((document.getElementById('page-title')||{}).textContent||'');},30000);
 
 // ===== UTILS =====
+// Raqam ko'rsatish (input tagida)
+function showNumHint(input){
+  const val=parseFloat((input.value||'').replace(/[^0-9.]/g,''))||0;
+  let hint=input.parentElement&&input.parentElement.querySelector('.num-hint');
+  if(!hint){
+    hint=document.createElement('div');
+    hint.className='num-hint';
+    (input.parentElement||input).appendChild(hint);
+  }
+  hint.textContent=val>=1000?val.toLocaleString('uz-UZ')+" so'm":""; 
+}
+
 const fmt = n => Number(n||0).toLocaleString("uz-UZ") + " so'm";
 const fmtDate = d => new Date(d).toLocaleString("uz-UZ",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"});
+
+
 const genId = p => p+"-"+Date.now().toString(36).toUpperCase();
 const badge = (t,c) => `<span class="badge badge-${c}">${t}</span>`;
 function getPayTypeName(id){
@@ -1192,22 +1477,17 @@ window.addEventListener('DOMContentLoaded', async () => {
 });
 
 function showAppLoading(text) {
-  let el = document.getElementById('app-splash');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'app-splash';
-    el.style.cssText = 'position:fixed;inset:0;background:linear-gradient(135deg,#1e1b4b,#312e81);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;z-index:99999';
-    document.body.appendChild(el);
-  }
-  el.innerHTML = `
-    <div style="width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#6366f1,#a78bfa);display:flex;align-items:center;justify-content:center;box-shadow:0 8px 32px rgba(99,102,241,.5)">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-    </div>
-    <div style="color:#fff;font-size:15px;font-weight:600">${text}</div>
-    <div style="display:flex;gap:8px">
-      <div style="width:10px;height:10px;border-radius:50%;background:#818cf8;animation:pulse 1.2s ease-in-out infinite"></div>
-      <div style="width:10px;height:10px;border-radius:50%;background:#a5b4fc;animation:pulse 1.2s ease-in-out .2s infinite"></div>
-      <div style="width:10px;height:10px;border-radius:50%;background:#c7d2fe;animation:pulse 1.2s ease-in-out .4s infinite"></div>
+  const lp=document.getElementById('login-page');
+  if(lp) lp.innerHTML=`
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;gap:16px">
+      <div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,#6366f1,#8b5cf6)" class="skeleton"></div>
+      <div class="skeleton" style="width:140px;height:20px"></div>
+      <div class="skeleton" style="width:200px;height:14px;opacity:.6"></div>
+      <div style="margin-top:8px;display:flex;gap:6px">
+        <div class="skeleton" style="width:8px;height:8px;border-radius:50%;animation-delay:0s"></div>
+        <div class="skeleton" style="width:8px;height:8px;border-radius:50%;animation-delay:.2s"></div>
+        <div class="skeleton" style="width:8px;height:8px;border-radius:50%;animation-delay:.4s"></div>
+      </div>
     </div>`;
 }
 function hideAppLoading() {
@@ -1216,6 +1496,11 @@ function hideAppLoading() {
     el.style.transition = 'opacity .3s';
     el.style.opacity = '0';
     setTimeout(() => el.remove(), 300);
+  }
+  // Login formani qayta render
+  const lp=document.getElementById('login-page');
+  if(lp&&!lp.querySelector('#login-input')){
+    lp.innerHTML=`<div class="login-card"><div style="text-align:center;margin-bottom:28px"><div class="login-logo">P</div><h1 class="login-title">Pro Cases</h1><p class="login-sub">Savdo boshqaruv tizimiga kiring</p></div><div class="form-group"><label class="form-label">Login</label><div class="input-wrap"><svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="7" r="4"/><path d="M5.5 21a8.38 8.38 0 0113 0"/></svg><input id="login-input" class="form-input" placeholder="Login" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('pass-input').focus()"/></div></div><div class="form-group"><label class="form-label">Parol</label><div class="input-wrap"><input id="pass-input" class="form-input" type="password" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()"/><button class="input-pw-btn" onclick="togglePw('pass-input',this)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div></div><button class="btn btn-primary btn-lg w-full" style="justify-content:center" onclick="doLogin()">Kirish</button></div>`;
   }
 }
 
@@ -1341,6 +1626,7 @@ function startApp(){
       topAv.innerHTML=`<img src="${currentUser.avatarUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
     } else {
       topAv.textContent=currentUser.avatar;
+      topAv.style.background=`linear-gradient(135deg,${avatarColor(currentUser.name)},${avatarColor(currentUser.name+'2')})`;
     }
   }
   window._navUserId=currentUser.id;
@@ -1370,6 +1656,8 @@ function startApp(){
   renderSidebarNav();
   updateBranchSelector();
   updateOnline('Boshqaruv');
+  startDailyReportScheduler(); // Kunlik hisobot
+  if('ontouchstart' in window){initSwipeGestures();initPullToRefresh();} // Faqat mobilda
   goPage('dashboard');
   toast('Xush kelibsiz, '+currentUser.name+'!');
   startChatPolling();
@@ -1400,7 +1688,7 @@ async function manualRefresh(){
       switch(activePage){
         case'dashboard':renderDashboard();break;
         case'cashier':isMobile()?renderMobileCashier():renderCashier();break;
-        case'orders':renderDeliveryPage();break;
+        case'orders':renderOrders();break;
         case'warehouse':renderWarehouse();break;
         case'inventory':activeInv?renderActiveInventory():renderInventoryList();break;
         case'operations':renderOperations();break;
@@ -1453,11 +1741,11 @@ window.addEventListener('resize',()=>{
 const mobileMenuItems=[
   {page:'dashboard',label:'Boshqaruv',color:'#6366f1',icon:'<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>'},
   {page:'cashier',label:'Kassa',color:'#22c55e',icon:'<rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/>'},
-  {page:'orders',label:'Buyurtmalar / Topshirish',color:'#3b82f6',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>'},
+  {page:'delivery',label:'Topshirish',color:'#f59e0b',icon:'<path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/>'},
+  {page:'orders',label:'Buyurtmalar',color:'#3b82f6',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/>'},
   {page:'warehouse',label:'Ombor',color:'#f59e0b',icon:'<path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/>'},
   {page:'inventory',label:'Inventarizatsiya',color:'#8b5cf6',icon:'<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><polyline points="9,12 11,14 15,10"/>'},
   {page:'operations',label:'Kassa Amaliyot',color:'#ef4444',icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>'},
-  {page:'users',label:'Foydalanuvchilar',color:'#06b6d4',icon:'<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/>',adminOnly:true},
   {page:'chat',label:'Xabarlar',color:'#ec4899',icon:'<path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>'},
   {page:'debts',label:'Qarzlar',color:'#f97316',icon:'<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>'},
   {page:'settings',label:'Sozlamalar',color:'#64748b',icon:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>'},
@@ -1548,10 +1836,13 @@ function goPage(page){
   content.offsetHeight;
   content.style.animation='slideUp .26s ease';
   updateOnline(pageTitles[page]||page);
+  // Sahifa o'tish animatsiyasi
+  const pc=document.getElementById('page-content');
+  if(pc){pc.style.animation='none';pc.offsetHeight;pc.style.animation='pageIn .22s cubic-bezier(.4,0,.2,1) both';}
   switch(page){
     case'dashboard':isMobile()?renderMobileDashboard():renderDashboard();break;
     case'cashier':isMobile()?renderMobileCashier():renderCashier();break;
-    case'orders':isMobile()?renderMobileOrders():renderOrders();break;
+    case'orders':renderOrders();break;
     case'warehouse':
       if(currentUser.role==='supplier'){
         // Supplier faqat zakazlar tabini ko'ra oladi
@@ -2241,7 +2532,7 @@ function renderCashier(){
           <div style="flex:1"><label class="form-label" style="font-size:12px">Karta</label><input id="card-paid" type="number" class="form-input" placeholder="0" /></div>
         </div>
         <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
-          <button class="btn btn-primary btn-lg w-full" style="justify-content:center" onclick="doSell()">${svgIcon('check',16)} Sotish</button>
+          <button class="btn btn-primary btn-lg w-full" style="justify-content:center" onclick="haptic('medium');doSell()">${svgIcon('check',16)} Sotish</button>
           <button class="btn btn-ghost btn-md w-full" style="justify-content:center" onclick="clearCart()">${svgIcon('trash',16)} Savatni tozalash</button>
           <button class="btn btn-warning btn-md w-full" style="justify-content:center" onclick="openSmenaClose()">Smenani yopish</button>
         </div>
@@ -2360,7 +2651,7 @@ function openDebtModalForItem(i){
       <label class="form-label">Qarz summasi <span style="color:#ef4444">*</span>
         <span style="font-size:11px;color:var(--text3);font-weight:400"> (mahsulot narxidan farqli bo'lsa foyda hisoblanadi)</span>
       </label>
-      <input id="debt-amount" type="number" class="form-input" value="${actualPrice}" placeholder="${actualPrice}"
+      <input id="debt-amount" type="number" oninput="showNumHint(this)" class="form-input" value="${actualPrice}" placeholder="${actualPrice}"
         oninput="updateDebtProfit(${actualPrice})" />
       <div id="debt-profit-preview" style="margin-top:5px;font-size:12px;color:#4ade80"></div>
     </div>
@@ -2811,6 +3102,8 @@ function completeSell(total,da,partnerId,partnerNote){
   const receipt={id:oid,items:cart.map(i=>({...i})),total,discount:da,payType:currentPayType,date:new Date().toISOString(),cashier:currentUser.name,partnerId};
   cart=[];
   toast('Sotuv amalga oshirildi! Mahsulot topshirishga yuborildi.');
+  // Katta sotuv bo'lsa confetti
+  if(total>=50000) showConfetti();
   showReceipt(receipt);
   isMobile()?renderMobileCashier():renderCashier();
 }
@@ -3180,26 +3473,32 @@ function doReturn(){
 function exportSmenaExcel(){
   const closedSmenas=[...smenas].filter(s=>s.closed).reverse();
   if(closedSmenas.length===0){toast('Smena tarixi bo\'m-bo\'sh!','error');return;}
-  const headers=['Smena ID','Ochildi','Yopildi','Kim yopdi','Tushum','Harajat','Foyda','Sotuvlar soni','Izoh'];
+  const headers=['Smena ID','Ochildi','Yopildi','Kim yopdi','Tushum','Harajat','Qaytarish summasi','Qaytarish farqi','Foyda','Sotuvlar soni','Izoh'];
   const rows=closedSmenas.map(s=>{
     const smenaOrders=orders.filter(o=>o.smenaId===s.id);
     const smenaRev=calcRealRevenue(smenaOrders);
-    const smenaExp=expenses.filter(e=>e.smenaId===s.id&&e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income').reduce((sum,e)=>sum+e.amount,0);
-    const profit=s.factualProfit||smenaRev-smenaExp;
+    const smenaExp=expenses.filter(e=>e.smenaId===s.id&&e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'&&e.category!=='Qaytarish').reduce((sum,e)=>sum+e.amount,0);
+    // Qaytarish harajatlari
+    const returnExps=expenses.filter(e=>e.category==='Qaytarish'&&e.returnOrderId&&orders.some(o=>o.id===e.returnOrderId&&o.smenaId===s.id));
+    const returnTotal=returnExps.reduce((sum,e)=>sum+e.amount,0);
+    const returnDiff=returnExps.reduce((sum,e)=>sum+(e.returnDiff||0),0);
+    const profit=s.factualProfit!=null?s.factualProfit:smenaRev-smenaExp;
     return[
       s.id,
-      s.openedAt?new Date(s.openedAt).toLocaleString('uz-UZ'):'—',
-      s.closedAt?new Date(s.closedAt).toLocaleString('uz-UZ'):'—',
-      s.closedBy||s.by||'—',
-      smenaRev,smenaExp,profit,
+      s.openTime?new Date(s.openTime).toLocaleString('uz-UZ'):'—',
+      s.closeTime?new Date(s.closeTime).toLocaleString('uz-UZ'):'—',
+      s.closeBy||s.by||'—',
+      smenaRev, smenaExp, returnTotal, returnDiff, profit,
       smenaOrders.length,
       s.note||''
     ];
   });
   const totalRev=rows.reduce((s,r)=>s+r[4],0);
   const totalExp=rows.reduce((s,r)=>s+r[5],0);
-  const totalProfit=rows.reduce((s,r)=>s+r[6],0);
-  rows.push(['','','','JAMI:',totalRev,totalExp,totalProfit,'','']);
+  const totalRet=rows.reduce((s,r)=>s+r[6],0);
+  const totalRetDiff=rows.reduce((s,r)=>s+r[7],0);
+  const totalProfit=rows.reduce((s,r)=>s+r[8],0);
+  rows.push(['','','','JAMI:',totalRev,totalExp,totalRet,totalRetDiff,totalProfit,'','']);
   downloadXlsx('smena_tarixi_'+new Date().toISOString().slice(0,10)+'.xlsx', headers, rows);
   toast('Smena tarixi Excel yuklab olindi!');
 }
@@ -3226,16 +3525,33 @@ function exportWarehouseExcel(){
   toast('Ombor qoldiq Excel yuklab olindi!');
 }
 
-function renderWarehouse(tab){
+function renderWarehouse(tab,statusFilter){
   if(tab)warehouseTab=tab;
+  if(statusFilter!==undefined)window._whStatusFilter=statusFilter;
+  const curStatus=window._whStatusFilter||'';
   const isAdmin=currentUser.role==='admin';
   const search=(document.getElementById('wh-search')||{}).value||'';
-  const filtered=products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.id.toLowerCase().includes(search.toLowerCase()));
+  let filtered=products.filter(p=>p.name.toLowerCase().includes(search.toLowerCase())||p.id.toLowerCase().includes(search.toLowerCase()));
+  // Holat filtri
+  if(curStatus==='yetarli') filtered=filtered.filter(p=>p.stock>10);
+  else if(curStatus==='kam') filtered=filtered.filter(p=>p.stock>0&&p.stock<=10);
+  else if(curStatus==='tugagan') filtered=filtered.filter(p=>p.stock<=0);
+  else if(curStatus==='harakatsiz'){
+    // Harakatsiz: so'nggi 30 kunda sotilmagan
+    const d30=new Date();d30.setDate(d30.getDate()-30);
+    const soldIds=new Set(orders.filter(o=>new Date(o.date)>=d30).flatMap(o=>(o.items||[]).map(i=>i.pid)));
+    filtered=filtered.filter(p=>!soldIds.has(p.id));
+  }
   const rows=filtered.map(p=>`
     <tr>
     <td><input type="checkbox" class="label-chk" value="${p.id}" style="width:16px;height:16px;cursor:pointer;accent-color:#6366f1"></td>
     <td>${badge(p.id,'purple')}</td>
-    <td style="font-size:14px;font-weight:600">${p.name}</td>
+    <td style="font-size:14px;font-weight:600">
+      <div style="display:flex;align-items:center;gap:8px">
+        ${getProductImg(p.id,32)}
+        <span>${p.name}</span>
+      </div>
+    </td>
     <td>${badge(p.category,'blue')}</td>
     <td style="font-weight:700">${fmt(p.price)}${p.cost?`<div style="font-size:11px;color:#94a3b8">Kirim: ${fmt(p.cost)}</div>`:''}</td>
     <td><div class="flex items-center gap-8"><button onclick="changeStock('${p.id}',-1)" style="width:26px;height:26px;border-radius:6px;border:1px solid #e2e8f0;background:transparent;cursor:pointer;font-weight:700">−</button><span style="width:32px;text-align:center;font-weight:700">${p.stock}</span><button onclick="changeStock('${p.id}',1)" style="width:26px;height:26px;border-radius:6px;border:1px solid #e2e8f0;background:transparent;cursor:pointer;font-weight:700">+</button></div></td>
@@ -3314,6 +3630,7 @@ function renderWarehouse(tab){
         <button class="tab-btn${warehouseTab==='bulk'?' active':''}" onclick="renderWarehouse('bulk')">Kirim (Excel)</button>
         <button class="tab-btn${warehouseTab==='orders'?' active':''}" onclick="renderWarehouse('orders')">Zakazlar${purchaseOrders.filter(o=>o.status==='pending').length>0?' <span style="background:var(--accent);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px">'+purchaseOrders.filter(o=>o.status==='pending').length+'</span>':''}</button>
         <button class="tab-btn${warehouseTab==='history'?' active':''}" onclick="renderWarehouse('history')">Kirimlar tarixi</button>
+        <button class="tab-btn${warehouseTab==='inactive'?' active':''}" onclick="renderWarehouse('inactive')">Harakatsiz tovar</button>
       </div>
       <button class="btn btn-outline btn-sm" onclick="openCatModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg> Kategoriya qo'shish</button>
     </div>
@@ -3336,8 +3653,12 @@ function renderWarehouse(tab){
         </div>
       </div>
       <div class="card" style="padding:0;overflow:visible">
-        <div class="wh-sticky-toolbar">
-          <input id="wh-search" class="form-input" placeholder="Mahsulot qidirish... (Enter)" value="${search}" onkeydown="if(event.key==='Enter')renderWarehouse('stock')" style="flex:1;min-width:160px;max-width:300px" />
+        <div class="wh-sticky-toolbar" style="flex-wrap:wrap;gap:8px">
+          <input id="wh-search" class="form-input" placeholder="Mahsulot qidirish... (Enter)" value="${search}" onkeydown="if(event.key==='Enter')renderWarehouse('stock')" style="flex:1;min-width:150px;max-width:240px" />
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            ${[['','Barchasi'],['yetarli','Yetarli'],['kam','Kam'],['tugagan','Tugagan'],['harakatsiz','Harakatsiz']].map(([v,l])=>`
+              <button onclick="window._whStatusFilter='${v}';renderWarehouse('stock')" style="padding:5px 10px;border-radius:8px;border:1px solid var(--glass-border);cursor:pointer;font-size:12px;font-weight:600;font-family:inherit;background:${curStatus===v?'var(--accent)':'var(--glass)'};color:${curStatus===v?'#fff':'var(--text2)'}">${l}</button>`).join('')}
+          </div>
           <button class="btn btn-success btn-sm" onclick="exportWarehouseExcel()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> Excel
           </button>
@@ -3353,7 +3674,7 @@ function renderWarehouse(tab){
         <table><thead><tr><th style="width:36px"></th><th>ID</th><th>Nomi</th><th>Kategoriya</th><th>Narx</th><th>Qoldiq</th><th>Jami narx</th><th>Holat</th><th>Nakleyka</th>${isAdmin?'<th>O\'chirish</th>':''}</tr></thead>
         <tbody>${rows||'<tr><td colspan="10" style="text-align:center;padding:20px;color:#94a3b8">Mahsulotlar yo\'q</td></tr>'}</tbody></table>
         </div>
-      </div>`:warehouseTab==='bulk'?bulkForm:warehouseTab==='orders'?renderPurchaseOrdersHtml():renderImportHistoryHtml()}`;
+      </div>`:warehouseTab==='bulk'?bulkForm:warehouseTab==='orders'?renderPurchaseOrdersHtml():warehouseTab==='inactive'?renderInactiveProductsHtml():renderImportHistoryHtml()}`;
 }
 
 // ================================================================
@@ -3848,6 +4169,52 @@ function deletePurchaseOrder(poId){
   renderWarehouse('orders');
 }
 
+function renderInactiveProductsHtml(){
+  // Harakatsiz tovar: so'nggi 30 kunda sotilmagan mahsulotlar
+  const days=30;
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-days);
+  const soldIds=new Set(
+    orders.filter(o=>new Date(o.date)>=cutoff).flatMap(o=>(o.items||[]).map(i=>i.pid))
+  );
+  const inactive=products.filter(p=>!soldIds.has(p.id)&&p.stock>0);
+  const totalVal=inactive.reduce((s,p)=>s+(p.cost||p.price)*p.stock,0);
+
+  const rows=inactive.map(p=>{
+    // Bu mahsulot oxirgi qachon sotilgan
+    const lastOrder=orders.filter(o=>(o.items||[]).some(i=>i.pid===p.id)).sort((a,b)=>new Date(b.date)-new Date(a.date))[0];
+    const daysSince=lastOrder?Math.floor((new Date()-new Date(lastOrder.date))/(1000*60*60*24)):null;
+    return`<tr>
+      <td>${badge(p.id,'purple')}</td>
+      <td style="font-weight:600">${p.name}</td>
+      <td>${badge(p.category,'blue')}</td>
+      <td style="font-weight:700;color:var(--accent2)">${fmt(p.price)}</td>
+      <td style="font-weight:700">${p.stock} ta</td>
+      <td style="font-weight:700;color:#f59e0b">${fmt((p.cost||p.price)*p.stock)}</td>
+      <td style="color:${daysSince===null?'#94a3b8':daysSince>60?'#ef4444':'#f59e0b'};font-size:12px">
+        ${daysSince===null?'Hech sotilmagan':daysSince+' kun oldin'}
+      </td>
+    </tr>`;}).join('');
+
+  return`<div class="card">
+    <div class="card-header">
+      <span class="card-title">Harakatsiz tovar (${days} kun ichida sotilmagan)</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        ${badge(inactive.length+' ta mahsulot','yellow')}
+        <span style="font-size:12px;color:var(--text3)">Qoldiq qiymati: <b style="color:#f59e0b">${fmt(totalVal)}</b></span>
+      </div>
+    </div>
+    ${inactive.length===0?`<div style="text-align:center;padding:40px;color:var(--text3)">
+      <div style="font-size:15px;font-weight:600">Ajoyib! Barcha mahsulotlar so'nggi ${days} kunda sotilgan</div>
+    </div>`:`
+    <div style="overflow:auto">
+      <table>
+        <thead><tr><th>ID</th><th>Nomi</th><th>Kategoriya</th><th>Narx</th><th>Qoldiq</th><th>Qoldiq qiymati</th><th>Oxirgi sotuv</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>`}
+  </div>`;
+}
+
 function renderImportHistoryHtml(){
   const list=[...importHistory].reverse();
   const rows=list.map(imp=>{
@@ -4002,8 +4369,8 @@ function openEditProductModal(id){
   openModal(`Tahrirlash: ${p.name}`,`
     <div class="form-group"><label class="form-label">Nomi</label><input id="ep-name" class="form-input" value="${p.name}" /></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="form-group"><label class="form-label">Sotish narxi (so'm)</label><input id="ep-price" type="number" class="form-input" value="${p.price}" /></div>
-      <div class="form-group"><label class="form-label">Kirim narxi (so'm)</label><input id="ep-cost" type="number" class="form-input" value="${p.cost||0}" /></div>
+      <div class="form-group"><label class="form-label">Sotish narxi (so'm)</label><input id="ep-price" type="number" class="form-input" value="${p.price}" oninput="showNumHint(this)" /></div>
+      <div class="form-group"><label class="form-label">Kirim narxi (so'm)</label><input id="ep-cost" type="number" class="form-input" value="${p.cost||0}" oninput="showNumHint(this)" /></div>
     </div>
     <div class="form-group"><label class="form-label">Kategoriya</label><select id="ep-cat" class="form-input">${categories.map(c=>`<option value="${c}"${c===p.category?' selected':''}>${c}</option>`).join('')}</select></div>
     <div class="flex gap-10" style="margin-bottom:20px">
@@ -4421,19 +4788,37 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
 
   // Smena tarixi — yopilgan smenalar
   const closedSmenas=[...smenas].filter(s=>s.closed).reverse().slice(0,15);
-  const smenaRows=closedSmenas.map(s=>`
+  const smenaRows=closedSmenas.map(s=>{
+    // Qaytarish summasi — o'sha smenaning buyurtmalariga tegishli qaytarish harajatlari
+    const returnExps=expenses.filter(e=>
+      e.category==='Qaytarish'&&e.returnOrderId&&
+      orders.some(o=>o.id===e.returnOrderId&&o.smenaId===s.id)
+    );
+    const returnTotal=returnExps.reduce((sum,e)=>sum+e.amount,0);
+    const productReturnTotal=returnExps.reduce((sum,e)=>sum+(e.productReturnTotal||0),0);
+    const returnDiffTotal=returnExps.reduce((sum,e)=>sum+(e.returnDiff||0),0);
+    // Foyda: factualProfit (qaytarish ta'siri bilan yangilangan) yoki diff
+    const profit=s.factualProfit!=null?s.factualProfit:(s.diff||0);
+    const hasReturn=returnTotal>0;
+    return`
     <tr>
       <td style="color:#6366f1;font-weight:700;font-size:12px">${s.id}</td>
       <td style="color:#64748b;font-size:12px">${fmtDate(s.openTime)}</td>
       <td style="color:#64748b;font-size:12px">${s.closeTime?fmtDate(s.closeTime):'—'}</td>
       <td>${s.closeBy||'—'}</td>
-      <td style="font-weight:700;color:${(s.diff||0)>=0?'#16a34a':'#ef4444'}">${(s.diff||0)>=0?'+':''}${fmt(s.diff||0)}</td>
+      <td style="font-weight:700">
+        <div style="color:${profit>=0?'#16a34a':'#ef4444'}">${profit>=0?'+':''}${fmt(profit)}</div>
+        ${hasReturn?`<div style="font-size:11px;color:#f87171;margin-top:2px">
+          Qaytarish: -${fmt(returnTotal)}
+          ${returnDiffTotal>0?`<span style="color:#fca5a5"> (farq: -${fmt(returnDiffTotal)})</span>`:''}
+        </div>`:''}
+      </td>
       <td style="color:#94a3b8;font-size:12px;max-width:180px">${s.note||'—'}</td>
       ${currentUser.role==='admin'?`<td><div class="flex gap-4">
         <button class="btn btn-outline btn-sm" onclick="openEditSmenaModal('${s.id}')" title="Tahrirlash">${svgIcon('edit',13)}</button>
         <button class="btn btn-danger btn-sm" onclick="deleteSmenaHistory('${s.id}')" title="O'chirish">${svgIcon('trash',13)}</button>
       </div></td>`:'<td></td>'}
-    </tr>`).join('');
+    </tr>`;}).join('');
 
   const expRows=[...filtExp].filter(e=>e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income').reverse().map(e=>`<tr>
     <td>${badge(e.category||'Boshqa','blue')}</td>
@@ -4537,8 +4922,12 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
       })()}
     </div>
     <div class="card" style="margin-bottom:16px">
-      <div class="card-title" style="margin-bottom:16px">Kunlik foyda (oxirgi 7 kun)</div>
-      <div style="display:flex;align-items:flex-end;gap:6px;height:100px">${profitBars}</div>
+      <div class="card-header" style="margin-bottom:12px">
+        <span class="card-title">Haftalik sotuv (oxirgi 7 kun)</span>
+        <span style="font-size:12px;color:var(--text3)">barni ustiga bosing → batafsil</span>
+      </div>
+      <div id="weekly-sparkline" style="padding:0 4px"></div>
+      ${renderSmenaProgress(appSettings.smenaTarget||500000)}
     </div>
     <div class="card">
       <div class="card-header">
@@ -4570,6 +4959,8 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
       <table><thead><tr><th>ID</th><th>Vaqt</th><th>Kassir</th><th>To'lov turi</th><th>Summa</th></tr></thead>
       <tbody>${orderRows||'<tr><td colspan="5" style="text-align:center;padding:20px;color:#94a3b8">Sotuv yo\'q</td></tr>'}</tbody></table>
     </div>`;
+  // Sparkline ni DOM tayyor bo'lgandan keyin render
+  setTimeout(()=>renderSparkline('weekly-sparkline'),50);
 }
 
 function openExpModal(){
@@ -4594,7 +4985,7 @@ function openExpModal(){
       <div id="exp-return-items" style="display:none;margin-bottom:12px"></div>
     </div>
     <div class="form-group"><label class="form-label">Izoh <span style="color:#94a3b8;font-weight:400">(ixtiyoriy)</span></label><input id="exp-desc" class="form-input" placeholder="Qo'shimcha izoh..." /></div>
-    <div class="form-group"><label class="form-label">Summa (so'm) <span style="color:#ef4444">*</span></label><input id="exp-amount" type="number" class="form-input" placeholder="50000" /></div>
+    <div class="form-group"><label class="form-label">Summa (so'm) <span style="color:#ef4444">*</span></label><input id="exp-amount" type="number" class="form-input" placeholder="50000" oninput="showNumHint(this)" /></div>
     <div class="flex gap-10"><button class="btn btn-primary btn-md" onclick="saveExpense()">${svgIcon('check',16)} Saqlash</button><button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button></div>`,480);
 }
 
@@ -4634,6 +5025,11 @@ function onReturnOrderSelect(oid){
   const expensedItems=(order.returnedItems||[]).filter(r=>r.expensed);
   const retAmt=unexpensedItems.reduce((s,r)=>s+r.price*r.qty,0);
   if(amountInp) amountInp.value=retAmt;
+  // Buyurtma qaysi smenaga tegishli — yopilgan/ochiq ko'rsatamiz
+  const orderSmena=order.smenaId?smenas.find(s=>s.id===order.smenaId):null;
+  const smenaInfo=orderSmena?`<div style="font-size:11px;margin-top:6px;padding:4px 8px;border-radius:6px;background:rgba(99,102,241,.1);color:#a5b4fc">
+    Smena: ${orderSmena.id} — ${orderSmena.closed?'✓ Yopilgan (farq o\'sha smena foydasidan ayiriladi)':'Ochiq (joriy smenaga qo\'shiladi)'}
+  </div>`:'';
   const itemRows=unexpensedItems.map(r=>`
     <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #fca5a5;font-size:13px">
       <span>${r.name} <span style="color:var(--text2)">x${r.qty}</span></span>
@@ -4647,8 +5043,10 @@ function onReturnOrderSelect(oid){
     <div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:8px">Qaytarilgan mahsulotlar (harajat qilinmagan):</div>
     ${itemRows||'<div style="font-size:13px;color:#94a3b8">Yo\'q</div>'}
     <div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:700;font-size:14px;border-top:1px solid #fca5a5;margin-top:4px">
-      <span>Jami qaytarish summasi:</span><span style="color:#ef4444">${fmt(retAmt)}</span>
+      <span>Mahsulot qaytarish summasi:</span><span style="color:#ef4444">${fmt(retAmt)}</span>
     </div>
+    ${smenaInfo}
+    <div style="font-size:11px;color:#94a3b8;margin-top:6px">Summani o'zgartira olasiz. Mahsulot narxidan yuqori bo'lsa — farq smena foydasidan ayiriladi.</div>
     ${expensedRows}
   </div>`;
   itemsDiv.style.display='block';
@@ -4697,6 +5095,7 @@ function saveExpense(){
   const amount=parseFloat((document.getElementById('exp-amount')||{}).value||0);
   if(!cat||!amount){toast('Kategoriya va summa majburiy!','error');return;}
   const entry={id:Date.now(),category:cat,desc,amount,date:new Date().toISOString(),by:currentUser.name,smenaId:currentSmenaId,branchId:currentBranchId||null};
+
   if(cat==='Qaytarish'){
     const retOid=((document.getElementById('exp-return-order')||{}).value||'').trim();
     if(!retOid){toast('Qaytarilgan buyurtmani tanlang!','error');return;}
@@ -4704,13 +5103,36 @@ function saveExpense(){
     if(!order){toast('Buyurtma topilmadi!','error');return;}
     const unexpensedItems=(order.returnedItems||[]).filter(r=>!r.expensed);
     if(unexpensedItems.length===0){toast('Bu buyurtma uchun barcha qaytarishlar allaqachon harajat qilingan!','error');return;}
-    // Tegishli returnedItems elementlarini "expensed" deb belgilash — qayta harajat qilib bo'lmaydi
+
+    // Qaytarilgan mahsulotlar asosiy narxi (150,000)
+    const productReturnTotal=unexpensedItems.reduce((s,r)=>s+(r.price*r.qty),0);
+    // Farq: kiritilgan summa - mahsulot narxi (200,000 - 150,000 = 50,000)
+    const diff=amount-productReturnTotal;
+
     const expensedRetIds=unexpensedItems.map(r=>r.retId);
     orders=orders.map(o=>o.id===retOid?{...o,returnedItems:o.returnedItems.map(r=>expensedRetIds.includes(r.retId)?{...r,expensed:true}:r)}:o);
+
     entry.returnOrderId=retOid;
     entry.expensedRetIds=expensedRetIds;
+    entry.productReturnTotal=productReturnTotal;
+    entry.returnDiff=diff;
     if(!entry.desc) entry.desc=retOid+' buyurtma qaytarish';
+
+    // Buyurtma qaysi smenaga tegishli — o'sha smena foydasidan farqni ayiramiz
+    const orderSmenaId=order.smenaId||currentSmenaId;
+    if(diff!==0){
+      smenas=smenas.map(s=>{
+        if(s.id!==orderSmenaId)return s;
+        // Joriy factualProfit ni aniqlaymiz
+        const curProfit=s.factualProfit!=null
+          ?s.factualProfit
+          :(s.diff!=null?s.diff:(s.faktual||0));
+        return{...s,factualProfit:curProfit-diff};
+      });
+      toast(`Farq ${fmt(Math.abs(diff))} smena foydasidan ${diff>0?'ayirildi':'qo\'shildi'}!`,'info');
+    }
   }
+
   expenses.push(entry);
   save();
   toast('Harajat qo\'shildi!');closeModal();renderOperations();
@@ -5493,6 +5915,7 @@ function renderAnalytics(){
           <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('cashier')" id="atab-cashier"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>Kassirlar</button>
           <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('margin')" id="atab-margin"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>Margin</button>
           <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('smena')" id="atab-smena"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>Smena margin</button>
+          <button class="btn btn-ghost btn-sm" onclick="showAnalyticsTab('compare')" id="atab-compare"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><polyline points="23,6 13.5,15.5 8.5,10.5 1,18"/><polyline points="17,6 23,6 23,12"/></svg>Solishtirma</button>
         </div>
         <div style="display:flex;align-items:center;gap:8px;margin-left:auto;flex-wrap:wrap">
           <span style="font-size:12px;color:var(--text2)">Davr:</span>
@@ -5515,7 +5938,7 @@ function refreshAnalytics(){
 
 
 function showAnalyticsTab(tab){
-  ['rating','cashier','margin','smena'].forEach(t=>{
+  ['rating','cashier','margin','smena','compare'].forEach(t=>{
     const btn=document.getElementById('atab-'+t);
     if(btn){btn.className=t===tab?'btn btn-primary btn-sm':'btn btn-ghost btn-sm';}
   });
@@ -5659,12 +6082,13 @@ function showAnalyticsTab(tab){
     // Har smena uchun tan narx va savdo summalarini hisoblash
     const smenaStats=filtSmenas.map(s=>{
       const smenaOrders=orders.filter(o=>o.smenaId===s.id);
+      // Savdo summasi (smena faktual yoki orderlar summasi)
       // Savdo summasi — qaytarilgan mahsulotlar ayiriladi
-      const savdo=smenaOrders.reduce((sum,o)=>{
+      const savdo=s.faktual!=null?s.faktual:smenaOrders.reduce((sum,o)=>{
         const retAmt=(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0);
         return sum+(o.total-retAmt);
       },0);
-      // Tan narx — faqat sof sotilgan (qaytarilmagan) mahsulotlar
+      // Tan narx — sotilgan mahsulotlar cost * qty
       let tanNarx=0;
       smenaOrders.forEach(o=>{
         (o.items||[]).forEach(item=>{
@@ -5675,15 +6099,10 @@ function showAnalyticsTab(tab){
           if(netQty>0)tanNarx+=cost*netQty;
         });
       });
-      // To'liq qaytarilgan buyurtmalarni hisoblamaymiz
-      const activeOrders=smenaOrders.filter(o=>{
-        const allRet=o.items.every(item=>(o.returnedItems||[]).filter(r=>r.pid===item.pid).reduce((s,r)=>s+r.qty,0)>=item.qty);
-        return !allRet;
-      });
       const foyda=savdo-tanNarx;
       const margin=savdo>0?Math.round(foyda/savdo*100):0;
       const tanNarxMargini=tanNarx>0?Math.round(foyda/tanNarx*100):0;
-      return {s,savdo,tanNarx,foyda,margin,tanNarxMargini,orderCount:activeOrders.length};
+      return {s,savdo,tanNarx,foyda,margin,tanNarxMargini,orderCount:smenaOrders.length};
     }).filter(x=>x.savdo>0||x.orderCount>0);
 
     // Jami
@@ -5763,6 +6182,174 @@ function showAnalyticsTab(tab){
         ${!hasCost?`<div style="margin:12px 16px;padding:10px 14px;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:8px;font-size:12px;color:#f59e0b">
           <b>Eslatma:</b> Mahsulotlarga kirim narxi (tan narx) kiritilmagan. Ombor → Mahsulot tahrirlash → "Kirim narxi" ga kiriting.
         </div>`:''}
+      </div>`;
+  }
+
+  else if(tab==='compare'){
+    // Solishtirma hisobot — bu oy vs o'tgan oy
+    const now=new Date();
+    const pad=n=>String(n).padStart(2,'0');
+
+    // Bu oy
+    const thisMonthStart=new Date(now.getFullYear(),now.getMonth(),1);
+    const thisMonthEnd=new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59);
+    // O'tgan oy
+    const lastMonthStart=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const lastMonthEnd=new Date(now.getFullYear(),now.getMonth(),0,23,59,59);
+
+    function monthStats(from,to){
+      // Buyurtmalar — to'liq qaytarilganlarni hisoblamaymiz
+      const ords=orders.filter(o=>{
+        const d=new Date(o.date);
+        if(d<from||d>to)return false;
+        // To'liq qaytarilgan buyurtmani chiqaramiz
+        const allRet=o.items.length>0&&o.items.every(item=>
+          (o.returnedItems||[]).filter(r=>r.pid===item.pid).reduce((s,r)=>s+r.qty,0)>=item.qty
+        );
+        return !allRet;
+      });
+      // Harajatlar — Qaytarish kategoriyasi va smena_profit, damage, partner_income hisoblanmaydi
+      const exps=expenses.filter(e=>{
+        const d=new Date(e.date);
+        return d>=from&&d<=to&&
+          e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'&&
+          e.category!=='Qaytarish'; // qaytarilgan buyurtma harajati hisoblanmaydi
+      });
+      // Tushum — qaytarilgan miqdor ayirilgan holda
+      const revenue=ords.reduce((s,o)=>{
+        const ret=(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0);
+        return s+(o.total-ret);
+      },0);
+      const expTotal=exps.reduce((s,e)=>s+e.amount,0);
+      // Sof foyda — smena tarixidagi factualProfit (smena yopilganda hisoblangan)
+      const closedSmenas=smenas.filter(s=>
+        s.closed&&new Date(s.closeTime||s.openTime)>=from&&new Date(s.closeTime||s.openTime)<=to
+      );
+      const closedSmenaProfit=closedSmenas.reduce((sum,s)=>{
+        // factualProfit — smena yopilganda kiritilgan aniq foyda
+        if(s.factualProfit!=null) return sum+s.factualProfit;
+        // Yo'q bo'lsa faktual - harajatlar bilan hisoblaymiz
+        const sRev=s.faktual!=null?s.faktual:orders.filter(o=>o.smenaId===s.id).reduce((x,o)=>x+o.total,0);
+        const sExp=expenses.filter(e=>
+          e.smenaId===s.id&&
+          e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'&&
+          e.category!=='Qaytarish'
+        ).reduce((x,e)=>x+e.amount,0);
+        return sum+(sRev-sExp);
+      },0);
+      const profit=closedSmenas.length>0?closedSmenaProfit:revenue-expTotal;
+      const orderCount=ords.length;
+      const avgCheck=orderCount?Math.round(revenue/orderCount):0;
+      // Eng ko'p sotiladigan (qaytarilganlar chiqarilgan)
+      const cnt={};
+      ords.forEach(o=>(o.items||[]).forEach(i=>{
+        const retQty=(o.returnedItems||[]).filter(r=>r.pid===i.pid).reduce((s,r)=>s+r.qty,0);
+        const netQty=i.qty-retQty;
+        if(netQty>0)cnt[i.name]=(cnt[i.name]||0)+netQty;
+      }));
+      const topProd=Object.entries(cnt).sort((a,b)=>b[1]-a[1])[0];
+      return{revenue,expTotal,profit,orderCount,avgCheck,topProd};
+    }
+
+    const thisM=monthStats(thisMonthStart,thisMonthEnd);
+    const lastM=monthStats(lastMonthStart,lastMonthEnd);
+
+    function diff(cur,prev){
+      if(!prev)return null;
+      const pct=Math.round((cur-prev)/Math.abs(prev)*100);
+      const up=pct>=0;
+      return`<span class="compare-badge" style="font-size:11px;font-weight:700;padding:2px 8px;border-radius:8px;background:${up?'rgba(34,197,94,.15)':'rgba(239,68,68,.15)'};color:${up?'#4ade80':'#f87171'};margin-left:8px">
+        ${up?'▲':'▼'} ${Math.abs(pct)}%
+      </span>`;
+    }
+
+    const thisLabel=`${now.getFullYear()}-${pad(now.getMonth()+1)} (Bu oy)`;
+    const lastLabel=`${now.getFullYear()}-${pad(now.getMonth())} (O'tgan oy)`;
+
+    const rows=[
+      {label:'Tushum',cur:thisM.revenue,prev:lastM.revenue,type:'price'},
+      {label:'Harajat',cur:thisM.expTotal,prev:lastM.expTotal,type:'price',invert:true},
+      {label:'Sof foyda',cur:thisM.profit,prev:lastM.profit,type:'price'},
+      {label:'Buyurtmalar',cur:thisM.orderCount,prev:lastM.orderCount,type:'count'},
+      {label:"O'rtacha chek",cur:thisM.avgCheck,prev:lastM.avgCheck,type:'price'},
+    ];
+
+    box.innerHTML=`
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Solishtirma hisobot</span>
+        </div>
+        <div style="overflow:auto">
+          <table>
+            <thead><tr>
+              <th>Ko'rsatkich</th>
+              <th style="color:#6366f1">${thisLabel}</th>
+              <th style="color:#94a3b8">${lastLabel}</th>
+              <th>O'zgarish</th>
+            </tr></thead>
+            <tbody>
+              ${rows.map(r=>{
+                const pct=r.prev?Math.round((r.cur-r.prev)/Math.abs(r.prev)*100):null;
+                const up=r.invert?pct<=0:pct>=0;
+                const color=pct===null?'var(--text2)':(up?'#4ade80':'#f87171');
+                return`<tr>
+                  <td style="font-weight:600">${r.label}</td>
+                  <td style="font-weight:700;color:var(--accent2)">${r.type==='price'?fmt(r.cur):r.cur}</td>
+                  <td style="color:var(--text3)">${r.type==='price'?fmt(r.prev):r.prev}</td>
+                  <td>${pct===null?'<span style="color:var(--text3)">—</span>':`<span style="font-weight:700;color:${color}">${up?'▲':'▼'} ${Math.abs(pct)}%</span>`}</td>
+                </tr>`;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Vizual solishtirma -->
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:16px;padding:0 4px">
+          ${[
+            {label:'Tushum',cur:thisM.revenue,prev:lastM.revenue,color:'#6366f1'},
+            {label:'Foyda',cur:thisM.profit,prev:lastM.profit,color:'#22c55e'},
+            {label:'Buyurtmalar',cur:thisM.orderCount,prev:lastM.orderCount,color:'#f59e0b'},
+          ].map(c=>{
+            const max=Math.max(c.cur,c.prev,1);
+            const curW=Math.round(c.cur/max*100);
+            const prevW=Math.round(c.prev/max*100);
+            const pct=c.prev?Math.round((c.cur-c.prev)/Math.abs(c.prev)*100):0;
+            return`<div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;padding:14px">
+              <div style="font-size:12px;color:var(--text3);margin-bottom:8px">${c.label}</div>
+              <!-- Bu oy -->
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                <div style="width:8px;height:8px;border-radius:50%;background:${c.color};flex-shrink:0"></div>
+                <div style="flex:1;height:8px;background:var(--glass);border-radius:4px;overflow:hidden">
+                  <div style="height:100%;width:${curW}%;background:${c.color};border-radius:4px;transition:width .5s"></div>
+                </div>
+              </div>
+              <!-- O'tgan oy -->
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+                <div style="width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);flex-shrink:0"></div>
+                <div style="flex:1;height:8px;background:var(--glass);border-radius:4px;overflow:hidden">
+                  <div style="height:100%;width:${prevW}%;background:rgba(255,255,255,.2);border-radius:4px"></div>
+                </div>
+              </div>
+              <div style="font-size:16px;font-weight:800;color:${c.color}">${c.label==='Buyurtmalar'?c.cur+'ta':fmt(c.cur)}</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">O'tgan oy: ${c.label==='Buyurtmalar'?c.prev+'ta':fmt(c.prev)}</div>
+              ${c.prev?`<div style="font-size:12px;font-weight:700;color:${pct>=0?'#4ade80':'#f87171'};margin-top:4px">${pct>=0?'▲ +':'▼ '}${Math.abs(pct)}%</div>`:''}
+            </div>`;
+          }).join('')}
+        </div>
+
+        <!-- Eng ko'p sotiladigan solishtirma -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px;padding:0 4px">
+          <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.15);border-radius:10px;padding:12px">
+            <div style="font-size:11px;color:#6366f1;font-weight:700;margin-bottom:4px">BU OY — TOP MAHSULOT</div>
+            <div style="font-weight:700;color:var(--text)">${thisM.topProd?thisM.topProd[0]:'—'}</div>
+            ${thisM.topProd?`<div style="font-size:12px;color:var(--text3)">${thisM.topProd[1]} ta sotildi</div>`:''}
+          </div>
+          <div style="background:rgba(148,163,184,.06);border:1px solid rgba(148,163,184,.15);border-radius:10px;padding:12px">
+            <div style="font-size:11px;color:#94a3b8;font-weight:700;margin-bottom:4px">O'TGAN OY — TOP MAHSULOT</div>
+            <div style="font-weight:700;color:var(--text)">${lastM.topProd?lastM.topProd[0]:'—'}</div>
+            ${lastM.topProd?`<div style="font-size:12px;color:var(--text3)">${lastM.topProd[1]} ta sotildi</div>`:''}
+          </div>
+        </div>
       </div>`;
   }
 }
@@ -7901,7 +8488,7 @@ function confirmDebtPay(){
   const d=debts.find(x=>x.id===_payDebtId);
   if(!d)return;
   const remaining=d.amount-d.paidAmount;
-  const payAmt=parseFloat((document.getElementById('debt-pay-amount')||{}).value||0);
+  const payAmt=getRawNum(document.getElementById('debt-pay-amount'));
   if(!payAmt||payAmt<=0){toast('To\'lov summasini kiriting!','error');return;}
   if(payAmt>remaining){toast('Kiritilgan summa qoldiqdan ko\'p!','error');return;}
 
