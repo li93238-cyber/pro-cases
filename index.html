@@ -1900,16 +1900,49 @@ function closeModalOverlay(e){if(e.target===document.getElementById('modal-overl
 
 // ===== REVENUE HELPERS =====
 // Haqiqiy tushum: yopilgan smenalar faktual + joriy smena savdo (qaytarilgansiz)
-// Kassa qoldig'ini hisoblash: jami tushum - harajatlar - bank transferlar
+// Kassa qoldig'ini hisoblash
 function calcKassaBalance(){
   const curOrders=currentBranchId?orders.filter(o=>o.branchId===currentBranchId):orders;
-  const revenue=curOrders.reduce((s,o)=>{
+  const curExp=currentBranchId?expenses.filter(e=>e.branchId===currentBranchId||!e.branchId):expenses;
+
+  // Joriy (ochiq) smena savdosi
+  const curSmenaOrders=curOrders.filter(o=>o.smenaId===currentSmenaId);
+  const curRevenue=curSmenaOrders.reduce((s,o)=>{
     const ret=(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0);
     return s+(o.total-ret);
   },0);
-  const curExp=currentBranchId?expenses.filter(e=>e.branchId===currentBranchId||!e.branchId):expenses;
-  const expTotal=curExp.filter(e=>e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income').reduce((s,e)=>s+e.amount,0);
-  return Math.max(0,revenue-expTotal);
+
+  // Joriy smena harajatlar (bank_transfer, bank_to_kassa va boshqalar)
+  const curExpenses=curExp.filter(e=>
+    e.smenaId===currentSmenaId&&
+    e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'
+  ).reduce((s,e)=>s+e.amount,0);
+
+  // Yopilgan smena faktual summalari
+  const closedSmenasCash=smenas.filter(s=>s.closed&&s.faktual!=null).reduce((sum,s)=>{
+    // Faktual — o'sha smena yopilgandagi kassadagi haqiqiy pul
+    const smenaExpAfterClose=curExp.filter(e=>
+      e.smenaId===s.id&&
+      e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'&&
+      new Date(e.date)>new Date(s.closeTime||0)
+    ).reduce((x,e)=>x+e.amount,0);
+    return sum+s.faktual-smenaExpAfterClose;
+  },0);
+
+  // Bank dan kassa ga kelgan pul (bank_to_kassa)
+  const bankToKassa=curExp.filter(e=>e.type==='bank_to_kassa')
+    .reduce((s,e)=>s+Math.abs(e.amount),0);
+
+  // Kassa dan bank ga ketgan pul (bank_transfer)
+  const kassaToBank=curExp.filter(e=>e.type==='bank_transfer')
+    .reduce((s,e)=>s+e.amount,0);
+
+  // Yopilgan smena bo'lsa: faktual + joriy smena savdo - joriy smena xarajat
+  if(smenas.some(s=>s.closed&&s.faktual!=null)){
+    return Math.max(0, closedSmenasCash + curRevenue - curExpenses);
+  }
+  // Yopilgan smena yo'q: jami savdo - jami harajat
+  return Math.max(0, curRevenue - curExpenses);
 }
 
 function calcRealRevenue(orderList){
@@ -4802,7 +4835,8 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
 
   // Jami sof foyda = yopilgan smenalar + joriy smena
   const toProfit=closedSmenaProfit+currentSmenaProfit;
-  const bal=toProfit;
+  // Kassa qoldig'i — haqiqiy kassadagi pul (faktual asosida)
+  const bal=calcKassaBalance();
   // Ziyon (ubitka) — yaroqsiz mahsulotlar
   const toDamage=filtExp.filter(e=>e.type==='damage').reduce((s,e)=>s+e.amount,0);
 
@@ -8582,7 +8616,7 @@ function openSmenaClose(){
     </div>
     <div class="form-group">
       <label class="form-label">Fakticheski kassa summasi (so'm)</label>
-      <input id="smena-faktual" type="number" class="form-input" placeholder="Kassadagi haqiqiy summa" oninput="calcSmenaDiff(${smenaRev})" />
+      <input id="smena-faktual" type="number" class="form-input" placeholder="Kassadagi haqiqiy summa" oninput="calcSmenaDiff(${smenaRev});showNumHint(this)" />
     </div>
     <div id="smena-diff-box" style="display:none;border-radius:10px;padding:14px;text-align:center;margin-bottom:16px">
       <div style="font-size:12px;color:#64748b;margin-bottom:4px">Foyda / farq</div>
