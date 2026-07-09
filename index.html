@@ -5161,10 +5161,25 @@ function saveExpense(){
 function deleteExpense(id){
   confirmDialog('Harajatni o\'chirishni tasdiqlaysizmi?',()=>{
     const exp=expenses.find(e=>e.id===id);
+    // Qaytarish harajati o'chirilsa — buyurtma va smena foydasini qaytaramiz
     if(exp&&exp.category==='Qaytarish'&&exp.returnOrderId&&exp.expensedRetIds){
-      orders=orders.map(o=>o.id===exp.returnOrderId?{...o,returnedItems:o.returnedItems.map(r=>exp.expensedRetIds.includes(r.retId)?{...r,expensed:false}:r)}:o);
+      orders=orders.map(o=>o.id===exp.returnOrderId
+        ?{...o,returnedItems:o.returnedItems.map(r=>exp.expensedRetIds.includes(r.retId)?{...r,expensed:false}:r)}
+        :o);
+      // Smena foydasini qayta tiklash (farqni qaytaramiz)
+      if(exp.returnDiff&&exp.returnDiff!==0){
+        const orderSmenaId=(orders.find(o=>o.id===exp.returnOrderId)||{}).smenaId;
+        if(orderSmenaId){
+          smenas=smenas.map(s=>{
+            if(s.id!==orderSmenaId)return s;
+            const cur=s.factualProfit!=null?s.factualProfit:(s.diff||0);
+            return{...s,factualProfit:cur+exp.returnDiff};
+          });
+        }
+      }
     }
     expenses=expenses.filter(e=>e.id!==id);
+    save(); // ← BU YETISHMAGAN EDI
     toast('Harajat o\'chirildi!','error');
     renderOperations();
   });
