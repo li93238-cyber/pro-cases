@@ -1900,6 +1900,18 @@ function closeModalOverlay(e){if(e.target===document.getElementById('modal-overl
 
 // ===== REVENUE HELPERS =====
 // Haqiqiy tushum: yopilgan smenalar faktual + joriy smena savdo (qaytarilgansiz)
+// Kassa qoldig'ini hisoblash: jami tushum - harajatlar - bank transferlar
+function calcKassaBalance(){
+  const curOrders=currentBranchId?orders.filter(o=>o.branchId===currentBranchId):orders;
+  const revenue=curOrders.reduce((s,o)=>{
+    const ret=(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0);
+    return s+(o.total-ret);
+  },0);
+  const curExp=currentBranchId?expenses.filter(e=>e.branchId===currentBranchId||!e.branchId):expenses;
+  const expTotal=curExp.filter(e=>e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income').reduce((s,e)=>s+e.amount,0);
+  return Math.max(0,revenue-expTotal);
+}
+
 function calcRealRevenue(orderList){
   let rev=0;
   // Yopilgan smena bo'yicha: o'sha smena faktual summasini ishlatamiz
@@ -4954,6 +4966,10 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
         <span class="card-title">Harajatlar</span>
         <div class="flex gap-8">
           ${hasPerm('expenses_add')?`<button class="btn btn-primary btn-sm" onclick="openExpModal()">${svgIcon('plus',14)} Harajat qo'shish</button>`:''}
+          ${hasPerm('expenses_add')?`<button class="btn btn-outline btn-sm" onclick="openTransferModal()" style="color:#6366f1;border-color:#6366f150">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+            Transfer
+          </button>`:''}
         </div>
       </div>
       <table><thead><tr><th>Kategoriya</th><th>Izoh</th><th>Summa</th><th>Sana</th><th>Kim</th><th></th></tr></thead>
@@ -4981,6 +4997,101 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
     </div>`;
   // Sparkline ni DOM tayyor bo'lgandan keyin render
   setTimeout(()=>renderSparkline('weekly-sparkline'),50);
+}
+
+// ===== KASSA → BANK TRANSFER =====
+function openTransferModal(){
+  const accounts=bankAccounts.filter(a=>a.active!==false);
+  if(!accounts.length){
+    toast('Bank hisob yo\'q. Avval Bank hisob bo\'limida hisob yarating!','error');
+    return;
+  }
+  // Joriy kassa qoldig'ini hisoblash
+  const kassaBalance=calcKassaBalance();
+  openModal('Kassadan Bank hisobga transfer',`
+    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:12px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--text3)">Joriy kassa qoldig'i</div>
+      <div style="font-size:22px;font-weight:800;color:var(--accent2)">${fmt(kassaBalance)}</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Bank hisob <span style="color:#ef4444">*</span></label>
+      <select id="tr-bank" class="form-input">
+        ${accounts.map(a=>`<option value="${a.id}">${a.name} — ${fmt(a.balance||0)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Summa (so'm) <span style="color:#ef4444">*</span></label>
+      <input id="tr-amount" type="number" class="form-input" placeholder="0" oninput="showNumHint(this)" />
+      <button onclick="document.getElementById('tr-amount').value=${kassaBalance};showNumHint(document.getElementById('tr-amount'))" 
+        style="margin-top:4px;font-size:11px;color:var(--accent2);background:none;border:none;cursor:pointer;padding:0">
+        Barchasini transfer qilish (${fmt(kassaBalance)})
+      </button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Izoh (ixtiyoriy)</label>
+      <input id="tr-note" class="form-input" placeholder="Izoh..." />
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-primary btn-md" onclick="saveTransfer()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14"/></svg>
+        Transfer qilish
+      </button>
+      <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
+    </div>`,440);
+}
+
+function saveTransfer(){
+  const bankId=(document.getElementById('tr-bank')||{}).value;
+  const amount=parseFloat((document.getElementById('tr-amount')||{}).value)||0;
+  const note=((document.getElementById('tr-note')||{}).value||'').trim();
+  if(!bankId||!amount||amount<=0){toast('Bank hisob va summa kiriting!','error');return;}
+
+  const bank=bankAccounts.find(a=>a.id===bankId);
+  if(!bank){toast('Bank hisob topilmadi!','error');return;}
+
+  const kassaBalance=calcKassaBalance();
+  if(amount>kassaBalance){
+    toast(`Kassada yetarli mablag' yo'q! Qoldiq: ${fmt(kassaBalance)}`,'error');
+    return;
+  }
+
+  // 1. Kassadan chiqim sifatida harajat
+  const expId=genId('EXP');
+  expenses.push({
+    id:expId,
+    category:'Bank transfer',
+    desc:`Bank hisobga o'tkazma: ${bank.name}${note?' — '+note:''}`,
+    amount:amount,
+    date:new Date().toISOString(),
+    by:currentUser.name,
+    smenaId:currentSmenaId,
+    branchId:currentBranchId||null,
+    type:'bank_transfer',
+    bankId:bankId
+  });
+
+  // 2. Bank hisobga kirim
+  const txnId=genId('TXN');
+  bankAccounts=bankAccounts.map(a=>{
+    if(a.id!==bankId)return a;
+    const newBalance=(a.balance||0)+amount;
+    const txns=[...(a.transactions||[]),{
+      id:txnId,
+      type:'in',
+      amount:amount,
+      desc:`Kassadan o'tkazma${note?' — '+note:''}`,
+      date:new Date().toISOString(),
+      by:currentUser.name,
+      expenseRef:expId
+    }];
+    return{...a,balance:newBalance,transactions:txns};
+  });
+
+  addAudit('Bank transfer',`${fmt(amount)} → ${bank.name}`,'Kassa Amaliyot');
+  save();
+  closeModal();
+  toast(`${fmt(amount)} ${bank.name} hisobiga o'tkazildi!`);
+  renderOperations();
 }
 
 function openExpModal(){
@@ -6526,11 +6637,22 @@ function renderBankAccounts(){
           <span style="font-weight:700;color:${t.type==='income'?'#4ade80':'#f87171'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</span>
         </div>`).join('')}
       </div>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-success btn-sm" onclick="openBankTxnModal('${b.id}','income')">+ Kirim</button>
-        <button class="btn btn-danger btn-sm" onclick="openBankTxnModal('${b.id}','expense')">− Chiqim</button>
-        <button class="btn btn-outline btn-sm" onclick="openBankEditModal('${b.id}')">Tahrirlash</button>
-        <button class="btn btn-ghost btn-sm" onclick="showBankHistory('${b.id}')">Tarixi</button>
+      <div style="display:flex;flex-wrap:wrap;gap:6px">
+        <button class="btn btn-success btn-sm" onclick="openBankTxnModal('${b.id}','income')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Kirim
+        </button>
+        <button class="btn btn-danger btn-sm" onclick="openBankTxnModal('${b.id}','expense')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg> Chiqim
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="openBankToKassaModal('${b.id}')" style="color:#6366f1;border-color:rgba(99,102,241,.3)">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> → Kassa
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="openBankEditModal('${b.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4z"/></svg> Tahrirlash
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="showBankHistory('${b.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg> Tarixi
+        </button>
       </div>
     </div>`;
   }).join('');
@@ -6577,6 +6699,85 @@ function saveBankAccount(id){
     toast('Yangi hisob qo\'shildi!');
   }
   save(); closeModal(); renderBankAccounts();
+}
+
+function openBankToKassaModal(bankId){
+  const bank=bankAccounts.find(a=>a.id===bankId);
+  if(!bank){toast('Bank hisob topilmadi!','error');return;}
+  openModal(`${bank.name} → Kassa transfer`,`
+    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:12px;margin-bottom:16px">
+      <div style="font-size:12px;color:var(--text3)">Bank hisob qoldig'i</div>
+      <div style="font-size:22px;font-weight:800;color:var(--accent2)">${fmt(bank.balance||0)}</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:2px">${bank.name}</div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Summa (so'm) <span style="color:#ef4444">*</span></label>
+      <input id="bk-amount" type="number" class="form-input" placeholder="0" oninput="showNumHint(this)" />
+      <button onclick="document.getElementById('bk-amount').value=${bank.balance||0};showNumHint(document.getElementById('bk-amount'))"
+        style="margin-top:4px;font-size:11px;color:var(--accent2);background:none;border:none;cursor:pointer;padding:0">
+        Barchasini kassaga o'tkazish (${fmt(bank.balance||0)})
+      </button>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Izoh (ixtiyoriy)</label>
+      <input id="bk-note" class="form-input" placeholder="Izoh..." />
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-primary btn-md" onclick="saveBankToKassa('${bankId}')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        Kassaga o'tkazish
+      </button>
+      <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
+    </div>`,420);
+}
+
+function saveBankToKassa(bankId){
+  const bank=bankAccounts.find(a=>a.id===bankId);
+  if(!bank){toast('Bank hisob topilmadi!','error');return;}
+  const amount=parseFloat((document.getElementById('bk-amount')||{}).value)||0;
+  const note=((document.getElementById('bk-note')||{}).value||'').trim();
+  if(!amount||amount<=0){toast('Summa kiriting!','error');return;}
+  if(amount>(bank.balance||0)){
+    toast(`Bank hisobda yetarli mablag' yo'q! Qoldiq: ${fmt(bank.balance||0)}`,'error');
+    return;
+  }
+
+  // 1. Bank hisobdan chiqim
+  const txnId=genId('TXN');
+  bankAccounts=bankAccounts.map(a=>{
+    if(a.id!==bankId)return a;
+    return{...a,
+      balance:(a.balance||0)-amount,
+      transactions:[...(a.transactions||[]),{
+        id:txnId, type:'out', amount:amount,
+        desc:`Kassaga o'tkazma${note?' — '+note:''}`,
+        date:new Date().toISOString(),
+        by:currentUser.name
+      }]
+    };
+  });
+
+  // 2. Kassaga kirim — manfiy harajat (income) sifatida
+  const expId=genId('EXP');
+  expenses.push({
+    id:expId,
+    category:'Bank transfer (kirim)',
+    desc:`${bank.name} dan kassaga o'tkazma${note?' — '+note:''}`,
+    amount:-amount, // manfiy = kassaga kirim
+    date:new Date().toISOString(),
+    by:currentUser.name,
+    smenaId:currentSmenaId,
+    branchId:currentBranchId||null,
+    type:'bank_to_kassa',
+    bankId:bankId,
+    bankTxnRef:txnId
+  });
+
+  addAudit('Bank → Kassa transfer',`${fmt(amount)} ← ${bank.name}`,'Bank hisob');
+  save();
+  closeModal();
+  toast(`${fmt(amount)} ${bank.name} dan kassaga o'tkazildi!`);
+  renderBankAccounts();
 }
 
 function openBankTxnModal(bankId, type){
