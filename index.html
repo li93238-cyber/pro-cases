@@ -209,16 +209,28 @@ select.form-input option{background:#12122a;color:var(--text)}
 .mobile-tabbar{display:none}
 @media(max-width:768px){
   .sidebar{display:none}.app{display:block}.main{min-height:100vh}
-  .page-content{padding:14px;padding-bottom:90px}
-  .topbar{padding:0 14px}
-  .stat-grid{grid-template-columns:1fr 1fr;gap:10px}
-  .stat-card{padding:14px;border-radius:14px}.stat-value{font-size:19px}
-  .two-cols{grid-template-columns:1fr}.card{padding:14px;border-radius:14px}
-  table{font-size:12px}th,td{padding:7px 8px}
-  .mobile-tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;height:62px;background:rgba(7,7,26,.9);backdrop-filter:blur(16px);border-top:1px solid var(--glass-border);z-index:200;align-items:center;justify-content:space-around;box-shadow:0 -4px 20px rgba(0,0,0,.3);padding-bottom:env(safe-area-inset-bottom)}
-  .mtab-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:600;flex:1;padding:6px 0;font-family:inherit;transition:color .15s}
+  .page-content{padding:12px;padding-bottom:90px}
+  .topbar{padding:0 12px}
+  /* Stat kartalar — mobilda 2 ustun */
+  .stat-grid{grid-template-columns:1fr 1fr;gap:8px}
+  .stat-card{padding:12px;border-radius:12px}.stat-value{font-size:17px}
+  .two-cols{grid-template-columns:1fr}
+  .card{padding:12px;border-radius:12px}
+  /* Jadvallar mobilda scroll */
+  .card > div[style*="overflow:auto"],table{min-width:0;width:100%}
+  table{font-size:11px;display:block;overflow-x:auto;white-space:nowrap}
+  th,td{padding:6px 8px}
+  /* Modal — pastdan chiqadi */
+  #modal-overlay{align-items:flex-end !important}
+  #modal-box{border-radius:20px 20px 0 0 !important;max-width:100% !important;width:100% !important;max-height:90vh;overflow-y:auto;animation:sheetUp .28s cubic-bezier(.4,0,.2,1) both;margin:0}
+  /* Kassa */
+  .cashier-grid{display:flex;flex-direction:column;gap:12px}.pay-panel{order:2}
+  /* Bottom tabbar */
+  .mobile-tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;height:62px;background:rgba(7,7,26,.95);backdrop-filter:blur(20px);border-top:1px solid var(--glass-border);z-index:200;align-items:center;justify-content:space-around;box-shadow:0 -4px 20px rgba(0,0,0,.3);padding-bottom:env(safe-area-inset-bottom)}
+  .mtab-btn{display:flex;flex-direction:column;align-items:center;gap:3px;background:none;border:none;cursor:pointer;color:var(--text3);font-size:10px;font-weight:600;flex:1;padding:6px 0;font-family:inherit;transition:color .15s;min-width:0}
   .mtab-btn.active{color:var(--accent2)}
   .mtab-fab{width:48px;height:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent3));display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:0 4px 16px rgba(99,102,241,.5);margin-top:-24px;flex:none;border:none;cursor:pointer}
+  /* Mobil menyu */
   .mob-hero{background:linear-gradient(135deg,rgba(49,46,129,.8),rgba(67,56,202,.6));border:1px solid rgba(99,102,241,.2);border-radius:16px;padding:18px;color:#fff;margin-bottom:14px;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between}
   .mob-hero-icon{width:40px;height:40px;border-radius:11px;background:rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .mob-menu-item{display:flex;align-items:center;gap:12px;padding:13px 15px;border-radius:13px;background:var(--glass);border:1px solid var(--glass-border);margin-bottom:7px;cursor:pointer;transition:all .15s}
@@ -226,7 +238,17 @@ select.form-input option{background:#12122a;color:var(--text)}
   .mob-menu-icon{width:33px;height:33px;border-radius:9px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
   .mob-stat-card{background:var(--glass);border:1px solid var(--glass-border);border-radius:13px;padding:13px;display:flex;flex-direction:column;gap:6px}
   .mob-stat-icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center}
-  .desktop-only{display:none !important}.cashier-grid{display:flex;flex-direction:column;gap:14px}.pay-panel{order:2}
+  .desktop-only{display:none !important}
+  /* Tugmalar mobilda to'liq kenglikda */
+  .btn-lg{width:100%;justify-content:center}
+  /* Bank karta — kichikroq */
+  .user-card{padding:14px;border-radius:14px}
+  /* Ruxsatlar modal grid */
+  .perm-grid{grid-template-columns:1fr !important}
+  /* Ombor sticky toolbar */
+  .wh-sticky-toolbar{flex-wrap:wrap;gap:6px;padding:10px 12px}
+  /* Analitika tablar */
+  #page-content .card .flex{flex-wrap:wrap;gap:6px}
 }
 @media(min-width:769px){.mobile-only{display:none !important}}
 
@@ -1064,24 +1086,50 @@ let returnOrderId = null;
 
 // ===== PERMISSIONS =====
 function hasPerm(key){
-  if(!currentUser)return false;
-  // Admin roli (asosiy yoki qo'shimcha) — to'liq ruxsat
-  const roles=currentUser.roles||[currentUser.role];
-  if(roles.includes('admin'))return true;
-  // Rol bo'yicha avtomatik ruxsatlar
-  const rolePerms={
-    cashier:   ['dashboard','cashier','orders'],
-    warehouse: ['dashboard','warehouse','inventory','warehouse_add','warehouse_bulk','warehouse_edit'],
+  if(!currentUser) return false;
+  var roles=currentUser.roles||[currentUser.role];
+  if(roles.includes('admin')) return true;
+  var perms=currentUser.perms||{};
+
+  // Aniq belgilangan bo'lsa — shuni qaytaramiz
+  if(Object.prototype.hasOwnProperty.call(perms,key)) return !!perms[key];
+
+  // Sahifa ruxsatlari standart
+  var rolePages={
+    cashier:   ['dashboard','cashier'],
+    warehouse: ['dashboard','warehouse','inventory'],
     supplier:  ['dashboard','warehouse'],
-    accountant:['dashboard','operations','orders','debts'],
+    accountant:['dashboard','operations','orders','debts','analytics','bank','partners'],
     viewer:    ['dashboard'],
   };
-  for(const r of roles){
-    if((rolePerms[r]||[]).includes(key))return true;
+  var pageKeys=['dashboard','cashier','orders','delivery','warehouse','inventory',
+    'operations','analytics','debts','partners','bank','loyalty','chat','audit',
+    'branches','settings'];
+
+  if(pageKeys.includes(key)){
+    for(var r of roles){
+      if((rolePages[r]||[]).includes(key)) return true;
+    }
+    return false;
   }
-  // Individual ruxsatlar
-  const p=currentUser.perms||{};
-  return !!p[key];
+
+  // Amal ruxsatlari standart
+  var act={
+    cashier_see_price:  true,
+    cashier_see_total:  true,
+    cashier_discount:   true,
+    cashier_debt:       roles.some(function(r){return['cashier','accountant'].includes(r);}),
+    orders_return:      roles.some(function(r){return['cashier','accountant'].includes(r);}),
+    delivery_confirm:   roles.includes('accountant'),
+    expenses_add:       roles.includes('accountant'),
+    expenses_delete:    false,
+    bank_transfer:      roles.includes('accountant'),
+    warehouse_add:      roles.some(function(r){return['warehouse','supplier'].includes(r);}),
+    warehouse_bulk:     roles.some(function(r){return['warehouse','supplier'].includes(r);}),
+    warehouse_edit:     roles.includes('warehouse'),
+    warehouse_delete:   false,
+  };
+  return !!act[key];
 }
 
 // Online sessions: GAS orqali boshqariladi
@@ -1174,7 +1222,12 @@ function renderSidebarNav(){
       ondragend="navDragEnd(event)"
       ondragleave="navDragLeave(event)"
       ${item.adminOnly?'data-admin-only="1"':''}
-      style="display:${item.adminOnly&&currentUser&&currentUser.role!=='admin'?'none':'flex'}">
+      style="display:${(()=>{
+        if(item.adminOnly && !(currentUser.roles||[currentUser.role]).includes('admin')) return 'none';
+        if(item.page==='users') return (currentUser.roles||[currentUser.role]).includes('admin')?'flex':'none';
+        if(!hasPerm(item.page)) return 'none';
+        return 'flex';
+      })()}">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0">${item.icon}</svg>
       <span class="label" style="flex:1">${item.label}${item.page==='chat'?'<span id="nav-chat-badge" style="display:none;background:#ef4444;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px">0</span>':''}${item.page==='delivery'?`<span id="nav-delivery-badge" style="${pendingDelivery.length>0?'':'display:none'};background:#f59e0b;color:#fff;border-radius:10px;padding:1px 7px;font-size:10px;margin-left:4px">${pendingDelivery.length}</span>`:''}</span>
       <span class="nav-drag-handle" title="Sudrab tartibni o'zgartirish" onclick="event.stopPropagation()">
@@ -1844,8 +1897,9 @@ const isMobile=()=>window.innerWidth<=768;
 
 function goPage(page){
   window._currentPage=page;
-  if(page==='users'&&currentUser.role!=='admin')return;
-  if(page!=='users'&&page!=='dashboard'&&page!=='chat'&&page!=='debts'&&!hasPerm(page))return;
+  // Admin bo'lmasa va ruxsat yo'q bo'lsa — blok
+  if(page==='users'&&!(currentUser.roles||[currentUser.role]).includes('admin')) return;
+  if(page!=='users'&&!hasPerm(page)) return;
   if(page!=='chat') chatOnPage=false;
   document.querySelectorAll('#sidebar-nav .nav-item').forEach(el=>el.classList.toggle('active',el.dataset.page===page));
   document.querySelectorAll('.mtab-btn').forEach(el=>el.classList.toggle('active',el.dataset.mpage===page));
@@ -2126,13 +2180,13 @@ function openMobPaySheet(){
     <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.06)">
       <div style="flex:1">
         <div style="font-size:13px;font-weight:600;color:var(--text)">${item.name}</div>
-        <div style="font-size:11px;color:var(--text3)">${fmt(item.price)} × ${item.qty}</div>
+        <div style="font-size:11px;color:var(--text3)">${hasPerm('cashier_see_price')?fmt(item.price)+' × '+item.qty:'× '+item.qty}</div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <button onclick="cart[${i}].qty>1?cart[${i}].qty--:cart.splice(${i},1);openMobPaySheet()" style="width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text);cursor:pointer;font-size:14px;font-weight:700">−</button>
         <span style="font-size:13px;font-weight:700;min-width:16px;text-align:center">${item.qty}</span>
         <button onclick="cart[${i}].qty++;openMobPaySheet()" style="width:26px;height:26px;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);color:var(--text);cursor:pointer;font-size:14px;font-weight:700">+</button>
-        <span style="font-size:13px;font-weight:700;color:var(--accent2);min-width:70px;text-align:right">${fmt(item.price*item.qty)}</span>
+        ${hasPerm('cashier_see_total')?`<span style="font-size:13px;font-weight:700;color:var(--accent2);min-width:70px;text-align:right">${fmt(item.price*item.qty)}</span>`:'<span style="min-width:70px"></span>'}
         <button onclick="cart.splice(${i},1);openMobPaySheet()" style="background:none;border:none;cursor:pointer;color:#f87171;padding:2px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
@@ -2609,11 +2663,13 @@ function renderCashier(){
 
 function renderCartTable(){
   if(cart.length===0) return`<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;color:#94a3b8;gap:12px"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg><p style="margin:0;font-size:15px">Savat bo'm-bo'sh</p></div>`;
-  return`<table><thead><tr><th>Mahsulot</th><th>Narx</th><th>Soni</th><th>Jami</th><th></th></tr></thead><tbody>${cart.map((item,i)=>`
+  const showPrice=hasPerm('cashier_see_price');
+  const showTotal=hasPerm('cashier_see_total');
+  return`<table><thead><tr><th>Mahsulot</th>${showPrice?'<th>Narx</th>':''}<th>Soni</th>${showTotal?'<th>Jami</th>':''}<th></th></tr></thead><tbody>${cart.map((item,i)=>`
     <tr><td><div style="font-size:14px;font-weight:600">${item.name}</div><div style="font-size:12px;color:#94a3b8">${item.pid}</div></td>
-    <td style="color:#64748b">${fmt(item.price)}</td>
+    ${showPrice?`<td style="color:#64748b">${fmt(item.price)}</td>`:''}
     <td><div class="flex items-center gap-8"><button onclick="changeQty(${i},-1)" style="width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;font-weight:700">−</button><span style="width:30px;text-align:center;font-weight:700">${item.qty}</span><button onclick="changeQty(${i},1)" style="width:28px;height:28px;border-radius:8px;border:1px solid #e2e8f0;background:#fff;cursor:pointer;font-weight:700">+</button></div></td>
-    <td style="font-weight:700">${fmt(item.price*item.qty)}</td>
+    ${showTotal?`<td style="font-weight:700">${fmt(item.price*item.qty)}</td>`:''}
     <td><div class="flex items-center gap-4">
       <button onclick="openDebtModalForItem(${i})" title="Qarzga berish" style="background:#fef3c7;border:1px solid #fde68a;border-radius:6px;cursor:pointer;color:#b45309;display:flex;padding:5px 7px;font-size:11px;font-weight:700;white-space:nowrap">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
@@ -2686,13 +2742,13 @@ function renderSummary(){
       ${auto.info.map(t=>`<div style="font-size:11px;color:#4ade80">✓ ${t}</div>`).join('')}
     </div>`:'';
 
-  return`<div class="summary-row"><span>Jami:</span><span>${fmt(sub)}</span></div>
-    ${disc>0?`<div class="summary-row"><span>Chegirma (${disc}%):</span><span style="color:#ef4444">-${fmt(manualDa)}</span></div>`:''}
-    ${auto.bulkDisc>0?`<div class="summary-row"><span>Ommaviy chegirma:</span><span style="color:#f59e0b">-${fmt(auto.bulkDisc)}</span></div>`:''}
+  return`${hasPerm('cashier_see_total')?`<div class="summary-row"><span>Jami:</span><span>${fmt(sub)}</span></div>`:''}
+    ${disc>0&&hasPerm('cashier_see_total')?`<div class="summary-row"><span>Chegirma (${disc}%):</span><span style="color:#ef4444">-${fmt(manualDa)}</span></div>`:''}
+    ${auto.bulkDisc>0&&hasPerm('cashier_see_total')?`<div class="summary-row"><span>Ommaviy chegirma:</span><span style="color:#f59e0b">-${fmt(auto.bulkDisc)}</span></div>`:''}
     ${giftVal>0?`<div class="summary-row"><span>Sovg'a (${auto.giftItems.map(g=>g.qty+'ta').join(', ')}):</span><span style="color:#4ade80">-${fmt(giftVal)}</span></div>`:''}
     ${infoHtml}
     <div class="divider"></div>
-    <div class="summary-total"><span>To'lash:</span><span>${fmt(total)}</span></div>`;
+    ${hasPerm('cashier_see_total')?`<div class="summary-total"><span>To'lash:</span><span>${fmt(total)}</span></div>`:`<div class="summary-total" style="color:var(--text3);font-size:13px"><span>To'lov</span><span>✓</span></div>`}`;
 }
 
 function updateSummary(){
@@ -3174,7 +3230,9 @@ function completeSell(total,da,partnerId,partnerNote){
 }
 
 function showReceipt(r){
-  const itemRows=r.items.map(i=>`<div class="receipt-row"><span>${i.name} x${i.qty}</span><span>${fmt(i.price*i.qty)}</span></div>`).join('');
+  const showP=hasPerm('cashier_see_price');
+  const showT=hasPerm('cashier_see_total');
+  const itemRows=r.items.map(i=>`<div class="receipt-row"><span>${i.name} x${i.qty}</span><span>${showP?fmt(i.price*i.qty):''}</span></div>`).join('');
   const cName=appSettings.companyName||'PRO CASES';
   const cAddr=appSettings.companyAddress?`<div style="font-size:11px;color:var(--text3)">${appSettings.companyAddress}</div>`:'';
   const cPhone=appSettings.companyPhone?`<div style="font-size:11px;color:var(--text3)">${appSettings.companyPhone}</div>`:'';
@@ -3191,7 +3249,7 @@ function showReceipt(r){
       </div>
       <div class="receipt-items">${itemRows}</div>
       ${r.discount>0?`<div class="receipt-row" style="color:#ef4444"><span>Chegirma:</span><span>-${fmt(r.discount)}</span></div>`:''}
-      <div class="receipt-row" style="font-size:16px;font-weight:800;margin-top:8px;color:var(--text)"><span>JAMI:</span><span>${fmt(r.total)}</span></div>
+      <div class="receipt-row" style="font-size:16px;font-weight:800;margin-top:8px;color:var(--text)"><span>JAMI:</span><span>${showT?fmt(r.total):''}</span></div>
       <div style="text-align:center;margin-top:8px;font-size:12px;color:var(--text3)">To'lov: ${getPayTypeName(r.payType)}</div>
       <div style="text-align:center;margin-top:12px;font-size:13px;color:var(--accent2);font-weight:600">${footer}</div>
       <button class="btn btn-primary btn-md w-full" style="justify-content:center;margin-top:16px" onclick="window.print()">${svgIcon('print',16)} Chop etish</button>
@@ -3696,6 +3754,10 @@ function renderWarehouse(tab,statusFilter){
         <button class="tab-btn${warehouseTab==='orders'?' active':''}" onclick="renderWarehouse('orders')">Zakazlar${purchaseOrders.filter(o=>o.status==='pending').length>0?' <span style="background:var(--accent);color:#fff;border-radius:10px;padding:1px 7px;font-size:10px">'+purchaseOrders.filter(o=>o.status==='pending').length+'</span>':''}</button>
         <button class="tab-btn${warehouseTab==='history'?' active':''}" onclick="renderWarehouse('history')">Kirimlar tarixi</button>
         <button class="tab-btn${warehouseTab==='inactive'?' active':''}" onclick="renderWarehouse('inactive')">Harakatsiz tovar</button>
+        <button class="tab-btn${warehouseTab==='qrscan'?' active':''}" onclick="renderWarehouse('qrscan')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:3px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg>
+          QR kodli kirim
+        </button>
       </div>
       <button class="btn btn-outline btn-sm" onclick="openCatModal()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg> Kategoriya qo'shish</button>
     </div>
@@ -3739,7 +3801,7 @@ function renderWarehouse(tab,statusFilter){
         <table><thead><tr><th style="width:36px"></th><th>ID</th><th>Nomi</th><th>Kategoriya</th><th>Narx</th><th>Qoldiq</th><th>Jami narx</th><th>Holat</th><th>Nakleyka</th>${isAdmin?'<th>O\'chirish</th>':''}</tr></thead>
         <tbody>${rows||'<tr><td colspan="10" style="text-align:center;padding:20px;color:#94a3b8">Mahsulotlar yo\'q</td></tr>'}</tbody></table>
         </div>
-      </div>`:warehouseTab==='bulk'?bulkForm:warehouseTab==='orders'?renderPurchaseOrdersHtml():warehouseTab==='inactive'?renderInactiveProductsHtml():renderImportHistoryHtml()}`;
+      </div>`:warehouseTab==='bulk'?bulkForm:warehouseTab==='orders'?renderPurchaseOrdersHtml():warehouseTab==='inactive'?renderInactiveProductsHtml():warehouseTab==='qrscan'?renderQrKirimHtml():renderImportHistoryHtml()}`;
 }
 
 // ================================================================
@@ -4232,6 +4294,235 @@ function deletePurchaseOrder(poId){
     renderWarehouse('orders');
   });
   renderWarehouse('orders');
+}
+
+// ================================================================
+//  QR KODLI KIRIM
+// ================================================================
+let _qrKirimList = []; // [{pid, name, qty, cost, price, isNew, newName, newCat}]
+
+function renderQrKirimHtml(){
+  const rows=_qrKirimList.map((item,i)=>{
+    const p=products.find(x=>x.id===item.pid);
+    return`<tr>
+      <td style="font-weight:700;color:var(--accent2)">${item.pid}</td>
+      <td style="font-weight:600">${item.isNew?`<span style="font-size:11px;background:rgba(34,197,94,.15);color:#4ade80;padding:2px 6px;border-radius:4px;margin-right:4px">Yangi</span>`:''}<input value="${item.name}" onchange="_qrKirimList[${i}].name=this.value" class="form-input" style="width:160px;padding:4px 8px;font-size:13px"/></td>
+      <td><input type="number" value="${item.qty}" min="1" onchange="_qrKirimList[${i}].qty=parseInt(this.value)||1" class="form-input" style="width:70px;padding:4px 8px;text-align:center"/></td>
+      <td><input type="number" value="${item.cost}" placeholder="Kirim narxi" onchange="_qrKirimList[${i}].cost=parseFloat(this.value)||0" class="form-input" style="width:110px;padding:4px 8px"/></td>
+      <td><input type="number" value="${item.price}" placeholder="Sotish narxi" onchange="_qrKirimList[${i}].price=parseFloat(this.value)||0" class="form-input" style="width:110px;padding:4px 8px"/></td>
+      <td style="font-weight:700;color:var(--accent2)">${p?p.stock+item.qty:item.qty} ta</td>
+      <td><button onclick="_qrKirimList.splice(${i},1);renderWarehouse('qrscan')" style="background:none;border:none;cursor:pointer;color:#ef4444">${svgIcon('trash',14)}</button></td>
+    </tr>`;
+  }).join('');
+
+  return`<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px">
+    <!-- Skaner paneli -->
+    <div class="card">
+      <div class="card-header" style="margin-bottom:12px">
+        <span class="card-title">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="3" height="3"/></svg>
+          QR / Barkod skaner
+        </span>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="qr-kirim-input" class="form-input" placeholder="ID skanerlang yoki kiriting (Enter)" style="flex:1;font-size:15px"
+          onkeydown="if(event.key==='Enter'){qrKirimScan();}"
+          oninput="if(window._qrKirimAuto&&this.value.trim().length>=3){clearTimeout(window._qkTimer);window._qkTimer=setTimeout(()=>{if(this.value.trim())qrKirimScan();},400)}"
+          autofocus/>
+        <button class="btn btn-outline btn-sm" onclick="openQrKirimCamera()" title="Kamera">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h3l2-3h6l2 3h3a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+        </button>
+      </div>
+      <!-- AVTO rejim -->
+      <button onclick="window._qrKirimAuto=!window._qrKirimAuto;renderWarehouse('qrscan')"
+        style="padding:6px 14px;border-radius:8px;border:1px solid var(--glass-border);cursor:pointer;font-size:12px;font-weight:700;font-family:inherit;background:${window._qrKirimAuto?'#22c55e':'var(--glass)'};color:${window._qrKirimAuto?'#fff':'var(--text2)'};margin-bottom:12px">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="display:inline;vertical-align:-1px;margin-right:4px"><polyline points="13,2 3,14 12,14 11,22 21,10 12,10"/></svg>
+        AVTO ${window._qrKirimAuto?'(Yoqilgan)':'(O\'chirilgan)'}
+      </button>
+      <!-- Yangi mahsulot qo'shish -->
+      <div style="border-top:1px solid var(--glass-border);padding-top:12px">
+        <div style="font-size:12px;font-weight:700;color:var(--text3);margin-bottom:8px">Yangi mahsulot (ombordan tashqari):</div>
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <input id="qk-new-id" class="form-input" placeholder="ID (ixtiyoriy, avto)" style="padding:6px 10px;font-size:13px"/>
+          <input id="qk-new-name" class="form-input" placeholder="Nomi *" style="padding:6px 10px;font-size:13px"/>
+          <select id="qk-new-cat" class="form-input" style="padding:6px 10px;font-size:13px">
+            ${categories.map(c=>`<option>${c}</option>`).join('')}
+          </select>
+          <div style="display:flex;gap:6px">
+            <input id="qk-new-cost" type="number" class="form-input" placeholder="Kirim narxi" style="flex:1;padding:6px 8px;font-size:13px" oninput="showNumHint(this)"/>
+            <input id="qk-new-price" type="number" class="form-input" placeholder="Sotish narxi" style="flex:1;padding:6px 8px;font-size:13px" oninput="showNumHint(this)"/>
+            <input id="qk-new-qty" type="number" class="form-input" placeholder="Soni" value="1" style="width:60px;padding:6px 8px;font-size:13px;text-align:center"/>
+          </div>
+          <button class="btn btn-primary btn-sm w-full" onclick="qrKirimAddNew()" style="justify-content:center">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Ro'yxatga qo'shish
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- Kirim ro'yxati -->
+    <div class="card" style="padding:0;overflow:visible">
+      <div style="padding:14px 16px;border-bottom:1px solid var(--glass-border);display:flex;justify-content:space-between;align-items:center">
+        <span class="card-title">Kirim ro'yxati (${_qrKirimList.length} ta)</span>
+        <div style="display:flex;gap:8px">
+          ${_qrKirimList.length>0?`
+          <button class="btn btn-danger btn-sm" onclick="if(confirm('Ro\\'yxatni tozalash?')){_qrKirimList=[];renderWarehouse('qrscan')}">
+            Tozalash
+          </button>
+          <button class="btn btn-success btn-md" onclick="saveQrKirim()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"/></svg>
+            Kirimni saqlash
+          </button>`:''}
+        </div>
+      </div>
+      ${_qrKirimList.length===0?`
+        <div style="text-align:center;padding:60px 20px;color:var(--text3)">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:.3;margin:0 auto 12px;display:block"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <div style="font-size:14px;font-weight:600">QR skanerlang yoki mahsulot qo'shing</div>
+          <div style="font-size:12px;margin-top:4px">Ro'yxat to'lgandan so'ng "Kirimni saqlash" bosing</div>
+        </div>`:`
+      <div style="overflow:auto;padding:0 16px 16px">
+        <table style="margin-top:12px">
+          <thead><tr><th>ID</th><th>Nomi</th><th>Soni</th><th>Kirim narx</th><th>Sotish narx</th><th>Yangi qoldiq</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`}
+    </div>
+  </div>
+  <div id="qr-kirim-camera-box"></div>`;
+}
+
+function qrKirimScan(){
+  const inp=document.getElementById('qr-kirim-input');
+  if(!inp)return;
+  const id=(inp.value||'').trim().toUpperCase();
+  if(!id)return;
+  inp.value='';
+  inp.focus();
+  const p=products.find(x=>x.id===id||x.id===id.replace(/^P/,'P'));
+  if(!p){
+    toast(`"${id}" — Ombordan topilmadi. Yangi mahsulot sifatida qo'shing.`,'error');
+    const newIdEl=document.getElementById('qk-new-id');
+    if(newIdEl) newIdEl.value=id;
+    return;
+  }
+  // Ro'yxatda bormi?
+  const existing=_qrKirimList.find(x=>x.pid===p.id);
+  if(existing){
+    existing.qty++;
+    toast(`${p.name} — soni ${existing.qty} ga oshdi`);
+  } else {
+    _qrKirimList.push({pid:p.id,name:p.name,qty:1,cost:p.cost||0,price:p.price,isNew:false});
+    toast(`${p.name} ro'yxatga qo'shildi`);
+  }
+  renderWarehouse('qrscan');
+}
+
+function qrKirimAddNew(){
+  const id=((document.getElementById('qk-new-id')||{}).value||'').trim().toUpperCase()||genId('P');
+  const name=((document.getElementById('qk-new-name')||{}).value||'').trim();
+  const cat=((document.getElementById('qk-new-cat')||{}).value||'').trim();
+  const cost=parseFloat((document.getElementById('qk-new-cost')||{}).value)||0;
+  const price=parseFloat((document.getElementById('qk-new-price')||{}).value)||0;
+  const qty=parseInt((document.getElementById('qk-new-qty')||{}).value)||1;
+  if(!name){toast('Mahsulot nomini kiriting!','error');return;}
+  const existing=_qrKirimList.find(x=>x.pid===id);
+  if(existing){existing.qty+=qty;toast(`${name} — soni yangilandi`);}
+  else{
+    const isNew=!products.find(x=>x.id===id);
+    _qrKirimList.push({pid:id,name,qty,cost,price,category:cat,isNew});
+    toast(`${name} ro'yxatga qo'shildi`);
+  }
+  // Inputlarni tozalash
+  ['qk-new-id','qk-new-name','qk-new-cost','qk-new-price'].forEach(k=>{const el=document.getElementById(k);if(el)el.value='';});
+  const qEl=document.getElementById('qk-new-qty');if(qEl)qEl.value='1';
+  renderWarehouse('qrscan');
+}
+
+function saveQrKirim(){
+  if(!_qrKirimList.length){toast('Ro\'yxat bo\'m-bo\'sh!','error');return;}
+  const now=new Date().toISOString();
+  const impItems=[];
+  _qrKirimList.forEach(item=>{
+    const p=products.find(x=>x.id===item.pid);
+    if(item.isNew||!p){
+      // Yangi mahsulot — omborga qo'shish
+      products.push({
+        id:item.pid, name:item.name, price:item.price||0,
+        cost:item.cost||0, category:item.category||'Boshqa',
+        stock:item.qty, active:true
+      });
+    } else {
+      // Mavjud mahsulot — kirim narxi va qoldiqni yangilash
+      products=products.map(pr=>{
+        if(pr.id!==item.pid)return pr;
+        return{...pr,
+          stock:pr.stock+item.qty,
+          cost:item.cost||pr.cost,
+          price:item.price||pr.price
+        };
+      });
+    }
+    impItems.push({pid:item.pid,name:item.name,qty:item.qty,cost:item.cost,price:item.price});
+    // Narx tarixi
+    if(item.cost||item.price){
+      priceHistory.push({pid:item.pid,name:item.name,oldCost:p?p.cost:0,newCost:item.cost,oldPrice:p?p.price:0,newPrice:item.price,date:now,by:currentUser.name,reason:'QR kirim'});
+    }
+  });
+  // Import tarixi
+  importHistory.push({id:genId('IMP'),date:now,by:currentUser.name,items:impItems,type:'QR kirim',total:impItems.length});
+  addAudit('QR kodli kirim',`${_qrKirimList.length} ta mahsulot, ${impItems.reduce((s,i)=>s+i.qty,0)} dona`,'Ombor');
+  _qrKirimList=[];
+  save();
+  toast(`Kirim muvaffaqiyatli saqlandi! ${impItems.length} ta mahsulot yangilandi.`);
+  renderWarehouse('history');
+}
+
+function openQrKirimCamera(){
+  const box=document.getElementById('qr-kirim-camera-box');
+  if(!box)return;
+  box.innerHTML=`<div class="card" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;margin-bottom:10px">
+      <span class="card-title">Kamera orqali skanerlash</span>
+      <button class="btn btn-ghost btn-sm" onclick="stopQrKirimCamera()">Yopish</button>
+    </div>
+    <video id="qk-video" style="width:100%;max-width:400px;border-radius:10px;display:block;margin:0 auto"></video>
+    <div id="qk-cam-status" style="text-align:center;padding:8px;font-size:12px;color:var(--text3)">Kamera ishga tushmoqda...</div>
+  </div>`;
+  const video=document.getElementById('qk-video');
+  navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}}).then(stream=>{
+    window._qkStream=stream;
+    video.srcObject=stream;
+    video.play();
+    document.getElementById('qk-cam-status').textContent='QR kodni kameraga ko\'rsating';
+    // QR decode (jsQR orqali)
+    const canvas=document.createElement('canvas');
+    const ctx=canvas.getContext('2d');
+    window._qkScanTimer=setInterval(()=>{
+      if(video.readyState===video.HAVE_ENOUGH_DATA){
+        canvas.width=video.videoWidth;canvas.height=video.videoHeight;
+        ctx.drawImage(video,0,0);
+        try{
+          const img=ctx.getImageData(0,0,canvas.width,canvas.height);
+          if(window.jsQR){
+            const code=window.jsQR(img.data,img.width,img.height);
+            if(code){
+              const inp=document.getElementById('qr-kirim-input');
+              if(inp){inp.value=code.data.trim();qrKirimScan();}
+              stopQrKirimCamera();
+            }
+          }
+        }catch(e){}
+      }
+    },300);
+  }).catch(e=>{document.getElementById('qk-cam-status').textContent='Kamera ruxsati berilmadi: '+e.message;});
+}
+
+function stopQrKirimCamera(){
+  if(window._qkStream)window._qkStream.getTracks().forEach(t=>t.stop());
+  if(window._qkScanTimer)clearInterval(window._qkScanTimer);
+  const box=document.getElementById('qr-kirim-camera-box');
+  if(box)box.innerHTML='';
 }
 
 function renderInactiveProductsHtml(){
@@ -6046,6 +6337,9 @@ function renderAuditLog(srch,filterBy){
           <button class="btn btn-ghost btn-sm" onclick="exportAuditExcel()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> Excel
           </button>
+          ${currentUser.role==='admin'?`<button class="btn btn-danger btn-sm" onclick="confirmDialog('Barcha audit log yozuvlarini o\\'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo\\'lmaydi!',()=>{auditLog=[];save();renderAuditLog();toast('Audit log tozalandi!','error');})">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg> Tozalash
+          </button>`:''}
         </div>
       </div>
       <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -6654,22 +6948,16 @@ function applyLoyaltyCard(){
 function renderBankAccounts(){
   const total=bankAccounts.reduce((s,b)=>s+b.balance,0);
   const cards=bankAccounts.map(b=>{
-    const txns=(b.transactions||[]).slice(-5).reverse();
     return`<div class="user-card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px">
         <div>
           <div style="font-size:16px;font-weight:800;color:var(--text)">${b.name}</div>
           <div style="font-size:12px;color:var(--text3)">${b.bankName||''}</div>
         </div>
         <div style="text-align:right">
-          <div style="font-size:20px;font-weight:800;color:${b.balance>=0?'var(--accent2)':'#f87171'}">${fmt(b.balance)}</div>
+          <div style="font-size:22px;font-weight:800;color:${b.balance>=0?'var(--accent2)':'#f87171'}">${fmt(b.balance)}</div>
+          <div style="font-size:11px;color:var(--text3)">${(b.transactions||[]).length} ta tranzaksiya</div>
         </div>
-      </div>
-      <div style="margin-bottom:10px">
-        ${txns.map(t=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--glass-border)">
-          <span style="color:var(--text2)">${t.desc||t.type}</span>
-          <span style="font-weight:700;color:${t.type==='income'?'#4ade80':'#f87171'}">${t.type==='income'?'+':'-'}${fmt(t.amount)}</span>
-        </div>`).join('')}
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:6px">
         <button class="btn btn-success btn-sm" onclick="openBankTxnModal('${b.id}','income')">
@@ -6687,6 +6975,9 @@ function renderBankAccounts(){
         <button class="btn btn-ghost btn-sm" onclick="showBankHistory('${b.id}')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg> Tarixi
         </button>
+        ${(b.balance||0)===0?`<button class="btn btn-danger btn-sm" onclick="deleteBankAccount('${b.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg> O'chirish
+        </button>`:`<span style="font-size:11px;color:var(--text3);padding:4px 6px" title="O'chirish uchun avval balansni 0 ga keltiring">🔒 Balansi ${fmt(b.balance)}</span>`}
       </div>
     </div>`;
   }).join('');
@@ -6812,6 +7103,18 @@ function saveBankToKassa(bankId){
   closeModal();
   toast(`${fmt(amount)} ${bank.name} dan kassaga o'tkazildi!`);
   renderBankAccounts();
+}
+
+function deleteBankAccount(id){
+  const b=bankAccounts.find(a=>a.id===id);
+  if(!b)return;
+  if((b.balance||0)!==0){toast('Hisobni o\'chirish uchun avval balansni 0 ga keltiring!','error');return;}
+  confirmDialog(`"${b.name}" hisob raqamini o'chirishni tasdiqlaysizmi?`,()=>{
+    bankAccounts=bankAccounts.filter(a=>a.id!==id);
+    save();
+    toast('Hisob raqam o\'chirildi!','error');
+    renderBankAccounts();
+  });
 }
 
 function openBankTxnModal(bankId, type){
@@ -7786,10 +8089,23 @@ function openPermModal(uid){
     {title:'Bo\'limlar (sahifalar)',color:'#6366f1',items:[
       {key:'dashboard',label:'Boshqaruv'},
       {key:'cashier',label:'Kassa'},
+      {key:'delivery',label:'Mahsulot topshirish'},
       {key:'orders',label:'Buyurtmalar'},
       {key:'warehouse',label:'Ombor'},
       {key:'inventory',label:'Inventarizatsiya'},
       {key:'operations',label:'Kassa Amaliyot'},
+      {key:'analytics',label:'Analitika'},
+      {key:'debts',label:'Qarzlar'},
+      {key:'partners',label:'Hamkorlar'},
+      {key:'bank',label:'Bank hisob'},
+      {key:'loyalty',label:'Chegirma kartalar'},
+      {key:'chat',label:'Xabarlar'},
+    ]},
+    {title:'Kassa amallari',color:'#22c55e',items:[
+      {key:'cashier_see_price',label:'Mahsulot narxini ko\'rish'},
+      {key:'cashier_see_total',label:'Jami to\'lov summasini ko\'rish'},
+      {key:'cashier_discount',label:'Chegirma berish'},
+      {key:'cashier_debt',label:'Qarzga berish'},
     ]},
     {title:'Ombor amallari',color:'#f59e0b',items:[
       {key:'warehouse_add',label:'Kirim qo\'shish (bitta)'},
@@ -7797,12 +8113,14 @@ function openPermModal(uid){
       {key:'warehouse_edit',label:'Mahsulot tahrirlash'},
       {key:'warehouse_delete',label:'Mahsulot o\'chirish'},
     ]},
-    {title:'Buyurtma amallari',color:'#22c55e',items:[
+    {title:'Buyurtma amallari',color:'#3b82f6',items:[
       {key:'orders_return',label:'Mahsulot qaytarish'},
+      {key:'delivery_confirm',label:'Mahsulot topshirishni chiqim qilish'},
     ]},
-    {title:'Harajat amallari',color:'#ef4444',items:[
+    {title:'Harajat va moliya amallari',color:'#ef4444',items:[
       {key:'expenses_add',label:'Harajat qo\'shish'},
       {key:'expenses_delete',label:'Harajat o\'chirish'},
+      {key:'bank_transfer',label:'Bank transferi'},
     ]},
   ];
 
@@ -7839,18 +8157,28 @@ function updatePermCheck(key,color,chk){
 }
 
 function savePerms(uid){
-  const permKeys=['dashboard','cashier','orders','warehouse','inventory','operations','warehouse_add','warehouse_bulk','warehouse_edit','warehouse_delete','orders_return','expenses_add','expenses_delete'];
+  const permKeys=[
+    'dashboard','cashier','delivery','orders','warehouse','inventory','operations',
+    'analytics','debts','partners','bank','loyalty','chat',
+    'cashier_see_price','cashier_see_total','cashier_discount','cashier_debt',
+    'warehouse_add','warehouse_bulk','warehouse_edit','warehouse_delete',
+    'orders_return','delivery_confirm',
+    'expenses_add','expenses_delete','bank_transfer'
+  ];
   const newPerms={};
   permKeys.forEach(k=>{
     const el=document.getElementById('perm-'+k);
-    if(el)newPerms[k]=el.checked;
+    if(el) newPerms[k]=el.checked;
   });
   users=users.map(u=>u.id===uid?{...u,perms:newPerms}:u);
-  if(currentUser.id===uid)currentUser={...currentUser,perms:newPerms};
+  if(currentUser.id===uid){
+    currentUser={...currentUser,perms:newPerms};
+  }
   save();
   toast('Ruxsatlar saqlandi!');
   closeModal();
   renderUsers();
+  renderSidebarNav(); // Sidebar yangilansin
 }
 
 function resetPerms(uid){
