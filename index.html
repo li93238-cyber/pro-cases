@@ -1734,6 +1734,16 @@ function startApp(){
   goPage('dashboard');
   toast('Xush kelibsiz, '+currentUser.name+'!');
   startChatPolling();
+  // Smena tekshiruvi — login qilganda
+  setTimeout(()=>{
+    if(checkOldSmena()){
+      const s=smenas.find(x=>x.id===currentSmenaId&&!x.closed);
+      const d=s?fmtDate(s.openTime||s.openedAt):'—';
+      toast('⚠️ Eski smena yopilmagan ('+d+'). Avval yoping!','error');
+    } else if(!hasActiveSmena()){
+      showNoSmenaWarning();
+    }
+  },1000);
 }
 
 // ===== QO'LDA YANGILASH (avtomatik interval o'chirildi) =====
@@ -1895,11 +1905,74 @@ function skeletonStats(n=4){
 const pageTitles={dashboard:'Boshqaruv',cashier:'Kassa',orders:'Buyurtmalar',warehouse:'Ombor',inventory:'Inventarizatsiya',operations:'Kassa Amaliyot',users:'Foydalanuvchilar',chat:'Xabarlar',debts:'Qarzlar',settings:'Sozlamalar',partners:'Hamkorlar',branches:'Filiallar',analytics:'Analitika',loyalty:'Chegirma kartalar',bank:'Bank hisoblar',audit:'Audit log',delivery:'Mahsulot topshirish'};
 const isMobile=()=>window.innerWidth<=768;
 
+function checkOldSmena(){
+  // Joriy smena bor va u kecha yoki undan oldin ochilganmi?
+  if(!currentSmenaId) return false;
+  const s=smenas.find(x=>x.id===currentSmenaId&&!x.closed);
+  if(!s) return false;
+  const openDate=new Date(s.openTime||s.openedAt||0);
+  const today=new Date();
+  const sameDay=openDate.getFullYear()===today.getFullYear()&&
+    openDate.getMonth()===today.getMonth()&&
+    openDate.getDate()===today.getDate();
+  return !sameDay;
+}
+
+function hasActiveSmena(){
+  // Bugungi ochiq smena bormi?
+  if(!currentSmenaId) return false;
+  const s=smenas.find(x=>x.id===currentSmenaId&&!x.closed);
+  if(!s) return false;
+  const openDate=new Date(s.openTime||s.openedAt||0);
+  const today=new Date();
+  return openDate.getFullYear()===today.getFullYear()&&
+    openDate.getMonth()===today.getMonth()&&
+    openDate.getDate()===today.getDate();
+}
+
+function showOldSmenaWarning(){
+  const s=smenas.find(x=>x.id===currentSmenaId&&!x.closed);
+  const openTime=s?fmtDate(s.openTime||s.openedAt):'—';
+  openModal('Eski smena yopilmagan!',
+    '<div style="text-align:center;padding:8px 0 16px">'
+    +'<div style="font-size:52px;margin-bottom:12px">⚠️</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#f59e0b;margin-bottom:8px">Avvalgi smena yopilmagan!</div>'
+    +'<div style="font-size:13px;color:var(--text2)">Ochilgan: <b>'+openTime+'</b></div>'
+    +'</div>'
+    +'<div style="background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.25);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:#f59e0b;text-align:center">'
+    +'Davom etish uchun avval smenani yoping!'
+    +'</div>'
+    +'<div style="display:flex;gap:10px">'
+    +'<button class="btn btn-primary btn-md" style="flex:1;justify-content:center" onclick="closeModal();openSmenaClose()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:5px"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>Smenani yopish</button>'
+    +'<button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>'
+    +'</div>',400);
+}
+
+function showNoSmenaWarning(){
+  openModal('Smena ochilmagan!',
+    '<div style="text-align:center;padding:8px 0 16px">'
+    +'<div style="font-size:52px;margin-bottom:12px">🔓</div>'
+    +'<div style="font-size:15px;font-weight:700;color:#6366f1;margin-bottom:8px">Smena ochilmagan!</div>'
+    +'<div style="font-size:13px;color:var(--text2)">Amaliyotlarni bajarish uchun avval smena oching.</div>'
+    +'</div>'
+    +'<div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--accent2);text-align:center">'
+    +'Smena ochilgandan keyin kassa, harajat va boshqa amallar bajariladi.'
+    +'</div>'
+    +'<button class="btn btn-primary btn-md w-full" style="justify-content:center" onclick="closeModal();openNewSmena()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:5px"><polygon points="5,3 19,12 5,21"/></svg>Smena ochish</button>',380);
+}
+
 function goPage(page){
   window._currentPage=page;
   // Admin bo'lmasa va ruxsat yo'q bo'lsa — blok
   if(page==='users'&&!(currentUser.roles||[currentUser.role]).includes('admin')) return;
   if(page!=='users'&&!hasPerm(page)) return;
+
+  // Smena tekshiruvi — kassa va amaliyot sahifalarida
+  const smenaPages=['cashier','operations','delivery'];
+  if(smenaPages.includes(page)){
+    if(checkOldSmena()){ showOldSmenaWarning(); return; }
+    if(!hasActiveSmena()){ showNoSmenaWarning(); return; }
+  }
   if(page!=='chat') chatOnPage=false;
   document.querySelectorAll('#sidebar-nav .nav-item').forEach(el=>el.classList.toggle('active',el.dataset.page===page));
   document.querySelectorAll('.mtab-btn').forEach(el=>el.classList.toggle('active',el.dataset.mpage===page));
@@ -2331,7 +2404,9 @@ function renderMobileOperations(){
   document.getElementById('page-content').innerHTML=`
     ${smena?`<div style="background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.2);border-radius:12px;padding:12px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">
       <div><div style="font-size:11px;color:var(--text3)">Joriy smena</div><div style="font-size:12px;font-weight:700;color:var(--accent2)">${smena.id}</div></div>
-      <button class="btn btn-warning btn-sm" onclick="openSmenaClose()">Smenani yopish</button>
+      <button class="btn btn-warning btn-sm" onclick="${hasActiveSmena()?'openSmenaClose()':'openNewSmena()'}">
+        ${hasActiveSmena()?'Smenani yopish':'Smena ochish'}
+      </button>
     </div>`:''}
     <div class="mob-stat-scroll">${stats.map(s=>`<div class="mob-stat-card"><div style="font-size:10px;color:var(--text3)">${s.label}</div><div style="font-size:16px;font-weight:800;color:${s.color}">${s.value}</div></div>`).join('')}</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
@@ -2458,6 +2533,10 @@ function openNewSmena(){
   if(currentBranchId)smena.branchId=currentBranchId;
   smenas.push(smena);
   save();
+  toast('Smena ochildi! Kassa faol.');
+  // Dashboard va Kassa tugmalarini yangilaymiz
+  if(typeof renderDashboard==='function') renderDashboard();
+  renderSidebarNav();
   return sid;
 }
 
@@ -2653,7 +2732,9 @@ function renderCashier(){
         <div style="margin-top:auto;display:flex;flex-direction:column;gap:8px">
           <button class="btn btn-primary btn-lg w-full" style="justify-content:center" onclick="haptic('medium');doSell()">${svgIcon('check',16)} Sotish</button>
           <button class="btn btn-ghost btn-md w-full" style="justify-content:center" onclick="clearCart()">${svgIcon('trash',16)} Savatni tozalash</button>
-          <button class="btn btn-warning btn-md w-full" style="justify-content:center" onclick="openSmenaClose()">Smenani yopish</button>
+          <button class="btn btn-warning btn-md w-full" style="justify-content:center" onclick="${hasActiveSmena()?'openSmenaClose()':'openNewSmena()'}">
+            ${hasActiveSmena()?'Smenani yopish':'Smena ochish'}
+          </button>
         </div>
       </div>
     </div>`;
@@ -2986,21 +3067,29 @@ function closeQrScanner(){
 
 function addToCart(autoTrigger=false){
   if(autoTrigger && !autoMode) return;
+  if(checkOldSmena()){showOldSmenaWarning();return;}
+  if(!hasActiveSmena()){showNoSmenaWarning();return;}
   const inp=document.getElementById(isMobile()?'mob-id-input':'id-input');
   const id=((inp||{}).value||'').trim();
   if(!id)return;
   const p=products.find(pr=>pr.id.toLowerCase()===id.toLowerCase());
-  if(!p){toast('Mahsulot topilmadi: '+id,'error');playBeep('error');inp.value='';return;}
-  if(p.stock<=0){toast('Mahsulot tugagan!','error');playBeep('error');inp.value='';return;}
+  if(!p){toast('Mahsulot topilmadi: '+id,'error');playBeep('error');if(inp)inp.value='';return;}
+  if((p.stock||0)<=0){toast(p.name+' — Mahsulot tugagan!','error');playBeep('error');if(inp)inp.value='';return;}
+  // Savatdagi soni + 1 ombor qoldiqidan oshmasin
   const ex=cart.findIndex(i=>i.pid===p.id);
+  const curQty=ex>=0?cart[ex].qty:0;
+  if(curQty+1>(p.stock||0)){
+    toast(p.name+' — Omborda yetarli emas! Qoldiq: '+(p.stock||0)+' ta','error');
+    playBeep('error');if(inp)inp.value='';return;
+  }
   if(ex>=0)cart[ex].qty++;
-  else cart.push({pid:p.id,name:p.name,price:p.price,qty:1});
-  inp.value='';
+  else cart.push({pid:p.id,name:p.name,price:p.price||0,qty:1});
+  if(inp)inp.value='';
   playBeep('success');
   const ca=document.getElementById('cart-area');
   if(ca)ca.innerHTML=renderCartTable();
   updateSummary();
-  if(autoMode)inp.focus();
+  if(autoMode&&inp)inp.focus();
 }
 
 function changeQty(i,d){
@@ -3109,41 +3198,54 @@ function addPayType(){
 function deletePayType(id){
   if(payTypes.length<=1){toast('Kamida 1 ta to\'lov turi bo\'lishi kerak!','error');return;}
   const inUse=orders.some(o=>o.payType===id);
-  if(inUse){toast('Bu to\'lov turi buyurtmalarda ishlatilgan, o\'chirib bo\'lmaydi!','error');return;}
+  if(inUse){toast('Bu to\'lov turi buyurtmalarda ishlatilgan!','error');return;}
   confirmDialog('Bu to\'lov turini o\'chirishni tasdiqlaysizmi?',()=>{
     payTypes=payTypes.filter(pt=>pt.id!==id);
     save();
-    renderPayTypesModal();
+    toast('O\'chirildi!','error');
+    openPayTypesModal();
   });
-  openPayTypesModal();
 }
 
 function doSell(){
-  if(cart.length===0){toast('Savat bo\'m-bo\'sh!','error');return;}
-  const disc=parseInt((document.getElementById('discount-input')||{}).value||0)||0;
-  const sub=cart.reduce((s,i)=>s+i.price*i.qty,0);
-  const auto=calcAutoDiscount();
-  const giftVal=auto.giftItems.reduce((s,g)=>s+g.freeVal,0);
-  const manualDa=Math.round(sub*(disc/100));
-  const da=manualDa+auto.bulkDisc+giftVal;
-  const total=Math.max(0,sub-da);
-  if(currentPayType==='aralash'){
-    const c=parseFloat((document.getElementById('cash-paid')||{}).value)||0;
-    const k=parseFloat((document.getElementById('card-paid')||{}).value)||0;
-    if(c+k<total){toast('To\'lov yetarli emas!','error');return;}
+  if(checkOldSmena()){showOldSmenaWarning();return;}
+  if(!hasActiveSmena()){showNoSmenaWarning();return;}
+  if(!cart||cart.length===0){toast('Savat bo\'m-bo\'sh!','error');return;}
+
+  // Ombor qoldiqlarini tekshirish
+  for(const item of cart){
+    const p=products.find(x=>x.id===item.pid);
+    if(!p){toast(item.name+' — mahsulot topilmadi!','error');return;}
+    if((p.stock||0)<item.qty){
+      toast(item.name+' — omborda yetarli emas! Qoldiq: '+(p.stock||0)+' ta','error');
+      return;
+    }
   }
-  // Hamkor to'lov turi — inline selectdan olish
+
+  const discEl=document.getElementById('discount-input');
+  const disc=parseInt((discEl||{}).value||0)||0;
+  const sub=cart.reduce((s,i)=>s+(i.price||0)*i.qty,0);
+  const auto=calcAutoDiscount();
+  const giftVal=(auto.giftItems||[]).reduce((s,g)=>s+(g.freeVal||0),0);
+  const manualDa=Math.round(sub*(disc/100));
+  const da=manualDa+(auto.bulkDisc||0)+giftVal;
+  const total=Math.max(0,sub-da);
+
+  if(currentPayType==='aralash'){
+    const cashPaid=parseFloat((document.getElementById('cash-paid')||{}).value)||0;
+    const cardPaid=parseFloat((document.getElementById('card-paid')||{}).value)||0;
+    if(cashPaid+cardPaid<total){toast('To\'lov yetarli emas! Kerak: '+fmt(total),'error');return;}
+  }
+
   if(currentPayType==='hamkor'){
     const pid=((document.getElementById('cashier-partner-select')||{}).value||'');
     if(!pid){toast('Hamkorni tanlang!','error');return;}
     const partner=partners.find(p=>p.id===pid);
     if(!partner){toast('Hamkor topilmadi!','error');return;}
-    // Hamkor balansiga yozish
     if(!partner.transactions)partner.transactions=[];
     partner.transactions.push({
       id:genId('TXN'),date:new Date().toISOString(),
-      amount:total,type:'debt',
-      desc:'Kassa savdo',
+      amount:total,type:'debt',desc:'Kassa savdo',
       by:currentUser.name,paid:false
     });
     partner.balance=(partner.balance||0)+total;
@@ -3203,29 +3305,45 @@ function confirmPartnerSell(total,da){
 }
 
 function completeSell(total,da,partnerId,partnerNote){
-  const oid=genId('PND'); // PND = Pending Delivery
+  if(!cart||!cart.length){toast('Savat bo\'sh!','error');return;}
+  if(!currentSmenaId){toast('Smena ochilmagan!','error');return;}
+
+  const oid=genId('PND');
+  const now=new Date().toISOString();
   const newEntry={
-    id:oid, date:new Date().toISOString(),
-    items:cart.map(i=>({...i})), total, discount:da,
-    payType:currentPayType, cashier:currentUser.name,
-    returnedItems:[], smenaId:currentSmenaId,
-    partnerId:partnerId||null, partnerNote:partnerNote||'',
+    id:oid, date:now,
+    items:cart.map(i=>({...i})),
+    total:total||0,
+    discount:da||0,
+    payType:currentPayType||'naqd',
+    cashier:currentUser.name,
+    returnedItems:[],
+    smenaId:currentSmenaId,
+    partnerId:partnerId||null,
+    partnerNote:partnerNote||'',
     branchId:currentBranchId||null,
-    status:'pending' // pending = topshirilmagan
+    status:'pending'
   };
-  // Faqat ombordan ayiriladi — orders ga EMAS, pendingDelivery ga tushadi
+
+  // Ombor qoldiqlarini kamaytirish
+  products=products.map(p=>{
+    const ci=cart.find(i=>i.pid===p.id);
+    if(!ci)return p;
+    const newStock=Math.max(0,(p.stock||0)-ci.qty);
+    return{...p,stock:newStock};
+  });
+
   pendingDelivery.push(newEntry);
-  products=products.map(p=>{const ci=cart.find(i=>i.pid===p.id);return ci?{...p,stock:p.stock-ci.qty}:p;});
-  // Loyalti karta — chiqim bo'lganda yangilanadi, hozir emas
-  // Audit log
-  addAudit('Sotuv (kutilmoqda)', `${fmt(total)} — ${cart.length} mahsulot`,'Kassa');
-  save();
-  const receipt={id:oid,items:cart.map(i=>({...i})),total,discount:da,payType:currentPayType,date:new Date().toISOString(),cashier:currentUser.name,partnerId};
+  addAudit('Sotuv (kutilmoqda)',`${fmt(total)} — ${cart.length} mahsulot`,'Kassa');
+
+  const receiptData={id:oid,items:cart.map(i=>({...i})),total,discount:da,payType:currentPayType,date:now,cashier:currentUser.name,partnerId};
   cart=[];
-  toast('Sotuv amalga oshirildi! Mahsulot topshirishga yuborildi.');
-  // Katta sotuv bo'lsa confetti
+
+  save();
+
   if(total>=50000) showConfetti();
-  showReceipt(receipt);
+  toast('Sotuv amalga oshirildi!');
+  showReceipt(receiptData);
   isMobile()?renderMobileCashier():renderCashier();
 }
 
@@ -4811,23 +4929,83 @@ function printSelectedLabels(){
   if(ids.length===0){toast('Hech bo\'lmasa 1 ta mahsulot tanlang!','error');return;}
   const selProducts=ids.map(id=>products.find(p=>p.id===id)).filter(Boolean);
   openModal('Ko\'plab nakleyka chop etish',`
-    <div style="margin-bottom:16px;padding:12px;background:#f0fdf4;border-radius:10px;font-size:13px;color:#16a34a;font-weight:600">
-      ${selProducts.length} ta mahsulot tanlangan
+    <div style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:8px">${selProducts.length} ta mahsulot tanlangan</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button onclick="setMultiLabelMode('one')" id="mode-one" class="btn btn-primary btn-sm">Har biridan 1 ta</button>
+        <button onclick="setMultiLabelMode('stock')" id="mode-stock" class="btn btn-ghost btn-sm">Qoldiq bo'yicha</button>
+        <button onclick="setMultiLabelMode('custom')" id="mode-custom" class="btn btn-ghost btn-sm">Qo'lda miqdor</button>
+      </div>
+      <div id="custom-qty-box" style="display:none;margin-top:8px">
+        <input id="multi-custom-qty" type="number" min="1" value="2" class="form-input" style="width:80px;padding:6px 8px;text-align:center" placeholder="Soni"/>
+        <span style="font-size:12px;color:var(--text3);margin-left:6px">ta (har mahsulotdan)</span>
+      </div>
     </div>
-    <div style="max-height:300px;overflow:auto;display:flex;flex-wrap:wrap;gap:12px;justify-content:center" id="multi-label-preview">
+    <div style="max-height:260px;overflow:auto;display:flex;flex-wrap:wrap;gap:10px;justify-content:center" id="multi-label-preview">
       ${selProducts.map(p=>`
-        <div style="border:1.5px dashed #e2e8f0;border-radius:10px;padding:12px;text-align:center;min-width:140px">
-          <div style="font-size:10px;color:#94a3b8;margin-bottom:4px">XPrinter</div>
-          <div style="font-size:13px;font-weight:800;margin-bottom:4px">${p.name}</div>
-          <canvas id="bc-${p.id}" style="display:block;margin:4px auto"></canvas>
-          <div style="font-size:14px;font-weight:900;font-family:monospace;letter-spacing:2px">${p.id}</div>
+        <div style="border:1.5px dashed #e2e8f0;border-radius:10px;padding:10px;text-align:center;min-width:130px">
+          <div style="font-size:10px;color:#94a3b8;margin-bottom:3px">XPrinter</div>
+          <div style="font-size:12px;font-weight:800;margin-bottom:3px">${p.name}</div>
+          <canvas id="bc-${p.id}" style="display:block;margin:3px auto"></canvas>
+          <div style="font-size:13px;font-weight:900;font-family:monospace;letter-spacing:2px">${p.id}</div>
+          <div style="font-size:10px;color:#6366f1;margin-top:3px">Qoldiq: ${p.stock} ta</div>
         </div>`).join('')}
     </div>
-    <button class="btn btn-primary btn-md w-full" style="justify-content:center;margin-top:16px" onclick="printMultiLabelWindow(${JSON.stringify(ids).replace(/"/g,"'")})">
+    <button class="btn btn-primary btn-md w-full" style="justify-content:center;margin-top:14px" onclick="printMultiLabelWindowQty(${JSON.stringify(ids).replace(/"/g,"'")})">
       ${svgIcon('print',16)} Barchasini chop etish
     </button>
-  `,560);
+  `,580);
+  window._multiLabelMode='one';
   setTimeout(()=>{selProducts.forEach(p=>drawBarcode('bc-'+p.id,p.id));},80);
+}
+
+function setMultiLabelMode(mode){
+  window._multiLabelMode=mode;
+  ['one','stock','custom'].forEach(m=>{
+    const btn=document.getElementById('mode-'+m);
+    if(btn) btn.className=m===mode?'btn btn-primary btn-sm':'btn btn-ghost btn-sm';
+  });
+  const box=document.getElementById('custom-qty-box');
+  if(box) box.style.display=mode==='custom'?'block':'none';
+}
+
+function printMultiLabelWindowQty(idsRaw){
+  const ids=typeof idsRaw==='string'?idsRaw.split(',').map(s=>s.trim().replace(/'/g,'')):idsRaw;
+  const mode=window._multiLabelMode||'one';
+  const customQty=parseInt((document.getElementById('multi-custom-qty')||{}).value)||1;
+  const selProducts=ids.map(id=>products.find(p=>p.id===id)).filter(Boolean);
+  const imgs=selProducts.map(p=>{
+    const qrDiv=document.getElementById('bc-'+p.id+'-qr');
+    const qrImg=qrDiv?qrDiv.querySelector('img'):null;
+    return{p,src:qrImg?qrImg.src:''};
+  });
+  const totalQty=imgs.reduce((s,{p})=>{
+    const q=mode==='stock'?p.stock:mode==='custom'?customQty:1;
+    return s+q;
+  },0);
+  const labelsHtml=imgs.map(({p,src})=>{
+    const qty=mode==='stock'?Math.max(1,p.stock):mode==='custom'?customQty:1;
+    const label=`<div class="label">
+      <div style="font-size:9px;color:#999;margin-bottom:3px">XPrinter</div>
+      <div style="font-size:14px;font-weight:800;margin-bottom:3px">${p.name}</div>
+      ${src?`<img src="${src}">`:''}
+      <div style="font-size:18px;font-weight:900;font-family:monospace;letter-spacing:3px">${p.id}</div>
+    </div>`;
+    return Array(qty).fill(label).join('');
+  }).join('');
+  const win=window.open('','_blank','width=500,height=600');
+  win.document.write(`<!DOCTYPE html><html><head><title>Nakleykalar</title>
+  <style>body{font-family:'Segoe UI',sans-serif;margin:0;padding:12px;background:#fff}
+  .label{border:1.5px dashed #ccc;border-radius:8px;padding:10px;display:inline-block;min-width:150px;text-align:center;margin:3px;vertical-align:top}
+  img{display:block;margin:5px auto;max-width:120px}
+  .info{background:#f0f4ff;border-radius:8px;padding:10px;margin-bottom:12px;font-size:13px;font-weight:600;color:#4338ca}
+  @media print{.info{display:none}button{display:none}.label{border:1px dashed #aaa;margin:2px;padding:6px}}
+  </style></head><body>
+  <div class="info">📦 ${selProducts.length} xil mahsulot — Jami ${totalQty} ta nakleyka</div>
+  ${labelsHtml}
+  <br><button onclick="window.print()" style="margin-top:10px;padding:10px 24px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;display:block;width:100%">Chop etish (${totalQty} ta)</button>
+  </body></html>`);
+  win.document.close();
 }
 
 function printLabel(id){
@@ -4840,8 +5018,23 @@ function printLabel(id){
       <canvas id="barcode-canvas" style="display:block;margin:0 auto 8px"></canvas>
       <div style="font-size:22px;font-weight:900;font-family:monospace;letter-spacing:3px">${p.id}</div>
     </div>
-    <button class="btn btn-primary btn-md w-full" style="justify-content:center;margin-top:16px" onclick="printLabelWindow('${p.id}')">${svgIcon('print',16)} XPrinter orqali chop etish</button>
-  `,340);
+    <div style="background:var(--glass);border:1px solid var(--glass-border);border-radius:10px;padding:12px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px">Nechta nakleyka chop etish?</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <button onclick="document.getElementById('label-qty').value=1" class="btn btn-ghost btn-sm">1 ta</button>
+        <button onclick="document.getElementById('label-qty').value=${p.stock}" class="btn btn-outline btn-sm" style="color:var(--accent2);border-color:rgba(99,102,241,.3)">
+          Qoldiq bo'yicha (${p.stock} ta)
+        </button>
+        <button onclick="document.getElementById('label-qty').value=${Math.ceil(p.stock/2)}" class="btn btn-ghost btn-sm">Yarmi (${Math.ceil(p.stock/2)} ta)</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <label style="font-size:12px;color:var(--text3);white-space:nowrap">Miqdor:</label>
+        <input id="label-qty" type="number" min="1" max="999" value="1" class="form-input" style="width:90px;padding:6px 10px;text-align:center" oninput="showNumHint(this)"/>
+        <span style="font-size:12px;color:var(--text3)">ta nakleyka</span>
+      </div>
+    </div>
+    <button class="btn btn-primary btn-md w-full" style="justify-content:center" onclick="printLabelWindowQty('${p.id}',parseInt(document.getElementById('label-qty').value)||1)">${svgIcon('print',16)} XPrinter orqali chop etish</button>
+  `,360);
   setTimeout(()=>drawBarcode('barcode-canvas',p.id),80);
 }
 
@@ -4868,6 +5061,38 @@ function drawBarcode(canvasId, text){
   }catch(e){
     qrDiv.innerHTML='<div style="font-size:11px;color:#ef4444">QR xato</div>';
   }
+}
+
+function printLabelWindowQty(pid, qty){
+  const p=products.find(pr=>pr.id===pid);
+  if(!p)return;
+  qty=Math.max(1,Math.min(qty,999));
+  const qrDiv=document.getElementById('barcode-canvas-qr');
+  const qrImg=qrDiv?qrDiv.querySelector('img'):null;
+  const bImg=qrImg?qrImg.src:'';
+  // Bir label HTML
+  const labelHtml=`
+    <div class="label">
+      <div style="font-size:9px;color:#999;margin-bottom:4px">XPrinter nakleyka — QR kod</div>
+      <div style="font-size:15px;font-weight:800;margin-bottom:4px">${p.name}</div>
+      ${bImg?`<img src="${bImg}">`:''}
+      <div style="font-size:19px;font-weight:900;font-family:monospace;letter-spacing:3px;margin:4px 0">${p.id}</div>
+    </div>`;
+  const win=window.open('','_blank','width=420,height=500');
+  win.document.write(`<!DOCTYPE html><html><head><title>Nakleyka x${qty} - ${p.id}</title>
+  <style>
+    body{font-family:'Segoe UI',sans-serif;margin:0;padding:12px;background:#fff}
+    .label{border:1.5px dashed #ccc;border-radius:8px;padding:12px;display:inline-block;min-width:160px;text-align:center;margin:4px;vertical-align:top}
+    img{display:block;margin:6px auto;max-width:130px}
+    .info{background:#f0f4ff;border-radius:8px;padding:10px;margin-bottom:12px;font-size:13px;font-weight:600;color:#4338ca}
+    @media print{body{padding:2px}.info{display:none}button{display:none}.label{border:1px dashed #aaa;margin:2px;padding:8px}}
+  </style></head>
+  <body>
+  <div class="info">📦 ${p.name} — ${qty} ta nakleyka</div>
+  ${Array(qty).fill(labelHtml).join('')}
+  <br><button onclick="window.print()" style="margin-top:10px;padding:10px 24px;background:#6366f1;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:14px;font-weight:700;display:block;width:100%">Chop etish (${qty} ta)</button>
+  </body></html>`);
+  win.document.close();
 }
 
 function printLabelWindow(pid){
@@ -5058,6 +5283,30 @@ function renderOperationsMonthly(){
 }
 
 function renderOperations(fromDate='',toDate='',showAllFlag=''){
+  const box=document.getElementById('page-content');
+
+  // Smena tekshiruvi
+  if(checkOldSmena()){
+    if(box) box.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px">'
+      +'<div style="width:64px;height:64px;border-radius:16px;background:rgba(245,158,11,.15);display:flex;align-items:center;justify-content:center">'
+      +'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>'
+      +'</div><div style="font-weight:700;font-size:15px;color:#f59e0b">Eski smena yopilmagan!</div>'
+      +'<div style="font-size:13px;color:var(--text2);text-align:center">Amaliyotlarni ko\'rish uchun avval eski smenani yoping</div>'
+      +'<button class="btn btn-primary btn-md" onclick="openSmenaClose()">Smenani yopish</button>'
+      +'</div>';
+    return;
+  }
+  if(!hasActiveSmena()){
+    if(box) box.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px">'
+      +'<div style="width:64px;height:64px;border-radius:16px;background:rgba(99,102,241,.15);display:flex;align-items:center;justify-content:center">'
+      +'<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 019.9-1"/></svg>'
+      +'</div><div style="font-weight:700;font-size:15px;color:var(--accent2)">Smena ochilmagan</div>'
+      +'<div style="font-size:13px;color:var(--text2)">Kassa amaliyotlari uchun smena oching</div>'
+      +'<button class="btn btn-primary btn-md" onclick="openNewSmena()">Smena ochish</button>'
+      +'</div>';
+    return;
+  }
+
   const showAll=showAllFlag==='all';
   const today=new Date().toDateString();
   // Sana filtri yo'q bo'lsa — joriy smena bo'yicha filtrlash; showAll=butun davr
@@ -5420,6 +5669,8 @@ function saveTransfer(){
 }
 
 function openExpModal(){
+  if(checkOldSmena()){showOldSmenaWarning();return;}
+  if(!hasActiveSmena()){showNoSmenaWarning();return;}
   if(!expCats.includes('Qaytarish')) expCats.unshift('Qaytarish');
   const catOpts=expCats.map(c=>`<option value="${c}">${c}</option>`).join('');
   openModal('Harajat qo\'shish',`
@@ -6297,6 +6548,55 @@ function deleteBranch(bid){
 // ================================================================
 //  AUDIT LOG — Kim, qachon, nima qildi
 // ================================================================
+// ================================================================
+//  AUDIT LOG
+// ================================================================
+function renderAuditLog(srch,filterBy){
+  srch=srch||''; filterBy=filterBy||'';
+  let list=[...auditLog].reverse();
+  if(srch) list=list.filter(a=>(a.action||'').toLowerCase().includes(srch.toLowerCase())||(a.details||'').toLowerCase().includes(srch.toLowerCase())||(a.by||'').toLowerCase().includes(srch.toLowerCase()));
+  if(filterBy) list=list.filter(a=>a.by===filterBy);
+  const ulist=[...new Set(auditLog.map(a=>a.by).filter(Boolean))];
+  const rows=list.slice(0,200).map(a=>`<tr>
+    <td style="color:var(--text3);font-size:12px;white-space:nowrap">${fmtDate(a.date)}</td>
+    <td style="font-weight:600">${a.by||'—'}</td>
+    <td>${badge(a.action||'—','blue')}</td>
+    <td style="color:var(--text2);max-width:280px;font-size:12px">${a.details||'—'}</td>
+    <td style="color:var(--text3);font-size:12px">${a.page||'—'}</td>
+  </tr>`).join('');
+  document.getElementById('page-content').innerHTML=`
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">${svgIcon('list',14)} Audit log</span>
+        <div style="display:flex;gap:8px;align-items:center">
+          ${badge(auditLog.length+' ta','blue')}
+          <button class="btn btn-ghost btn-sm" onclick="exportAuditExcel()">${svgIcon('download',13)} Excel</button>
+          ${currentUser.role==='admin'?`<button class="btn btn-danger btn-sm" onclick="confirmDialog('Barcha yozuvlarni o\'chirishni tasdiqlaysizmi?',()=>{auditLog=[];save();renderAuditLog();toast('Tozalandi!','error');})">${svgIcon('trash',13)} Tozalash</button>`:''}
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+        <input class="form-input" placeholder="Qidirish..." style="flex:1;min-width:160px" value="${srch}"
+          oninput="renderAuditLog(this.value,document.getElementById('audit-filter')?.value||'')"/>
+        <select id="audit-filter" class="form-input" style="width:160px"
+          onchange="renderAuditLog(document.querySelector('.audit-inp')?.value||'',this.value)">
+          <option value="">Barcha foydalanuvchilar</option>
+          ${ulist.map(u=>`<option value="${u}" ${u===filterBy?'selected':''}>${u}</option>`).join('')}
+        </select>
+      </div>
+      <div style="overflow:auto">
+        <table><thead><tr><th>Sana</th><th>Kim</th><th>Amal</th><th>Tafsilot</th><th>Sahifa</th></tr></thead>
+        <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text3)">Audit log bo\'sh</td></tr>'}</tbody></table>
+      </div>
+    </div>`;
+}
+
+function exportAuditExcel(){
+  const headers=['Sana','Kim','Amal','Tafsilot','Sahifa'];
+  const rows=[...auditLog].reverse().map(a=>[fmtDate(a.date),a.by||'—',a.action||'—',a.details||'—',a.page||'—']);
+  downloadXlsx('audit_log_'+new Date().toISOString().slice(0,10)+'.xlsx',headers,rows);
+  toast('Audit log Excel yuklab olindi!');
+}
+
 function addAudit(action, details='', page=''){
   if(!currentUser)return;
   auditLog.unshift({
@@ -6309,69 +6609,7 @@ function addAudit(action, details='', page=''){
   lsSet('auditLog', auditLog);
 }
 
-function renderAuditLog(srch,filterBy){
-  srch=srch||''; filterBy=filterBy||'';
-  let list=[...auditLog];
-  if(srch) list=list.filter(a=>
-    a.by.toLowerCase().includes(srch.toLowerCase())||
-    a.action.toLowerCase().includes(srch.toLowerCase())||
-    (a.details&&a.details.toLowerCase().includes(srch.toLowerCase()))
-  );
-  if(filterBy) list=list.filter(a=>a.by===filterBy);
-  const usersList=[...new Set(auditLog.map(a=>a.by))];
-  const rows=list.slice(0,200).map(a=>`
-    <tr>
-      <td style="font-size:12px;color:var(--text2)">${fmtDate(a.date)}</td>
-      <td style="font-weight:600">${a.by} <span style="font-size:11px;color:var(--text3)">(${a.role||'—'})</span></td>
-      <td>${badge(a.action,'blue')}</td>
-      <td style="font-size:12px;color:var(--text2)">${a.details||'—'}</td>
-      <td style="font-size:11px;color:var(--text3)">${a.page||'—'}</td>
-    </tr>`).join('');
-
-  document.getElementById('page-content').innerHTML=`
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:4px"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>Audit log</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          <span class="badge badge-blue">${list.length} ta</span>
-          <button class="btn btn-ghost btn-sm" onclick="exportAuditExcel()">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8,17 12,21 16,17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0018 9h-1.26A8 8 0 103 16.29"/></svg> Excel
-          </button>
-          ${currentUser.role==='admin'?`<button class="btn btn-danger btn-sm" onclick="confirmDialog('Barcha audit log yozuvlarini o\\'chirishni tasdiqlaysizmi? Bu amalni qaytarib bo\\'lmaydi!',()=>{auditLog=[];save();renderAuditLog();toast('Audit log tozalandi!','error');})">
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/></svg> Tozalash
-          </button>`:''}
-        </div>
-      </div>
-      <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-        <input id="audit-srch" class="form-input" placeholder="Qidirish..." value="${srch}"
-          oninput="renderAuditLog(this.value,document.getElementById('audit-fb').value)"
-          style="flex:1;min-width:180px"/>
-        <select id="audit-fb" class="form-input" style="width:175px"
-          onchange="renderAuditLog(document.getElementById('audit-srch').value,this.value)">
-          <option value="">Barcha foydalanuvchilar</option>
-          ${usersList.map(u=>`<option value="${u}" ${filterBy===u?'selected':''}>${u}</option>`).join('')}
-        </select>
-        ${srch||filterBy?`<button class="btn btn-ghost btn-sm" onclick="renderAuditLog()">✕ Tozalash</button>`:''}
-      </div>
-      <div style="overflow:auto">
-        <table><thead><tr><th>Sana</th><th>Foydalanuvchi</th><th>Amal</th><th>Tafsilot</th><th>Sahifa</th></tr></thead>
-        <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text3)">Hech narsa topilmadi</td></tr>'}</tbody>
-        </table>
-      </div>
-    </div>`;
-}
-
-
-function exportAuditExcel(){
-  if(!auditLog.length){toast('Audit log bo\'m-bo\'sh!','error');return;}
-  const headers=['Sana','Foydalanuvchi','Rol','Amal','Tafsilot','Sahifa'];
-  const rows=auditLog.map(a=>[fmtDate(a.date),a.by,a.role||'',a.action,a.details||'',a.page||'']);
-  downloadXlsx('audit_log_'+new Date().toISOString().slice(0,10)+'.xlsx', headers, rows);
-  toast('Audit log Excel yuklab olindi!');
-}
-
 // ================================================================
-//  ANALITIKA — Hisobot va statistika
 // ================================================================
 function renderAnalytics(){
   const now=new Date();
@@ -8997,14 +9235,27 @@ function closeSmena(smenaRev){
     by:currentUser.name
   });
 
-  // Yangi smena ochish
-  currentSmenaId='SM-'+Date.now().toString(36).toUpperCase();
-  smenas.push({id:currentSmenaId,openTime:new Date().toISOString(),openBy:currentUser.name,closed:false,branchId:currentBranchId||null});
+  // Yangi smena OCHILMAYDI — foydalanuvchi o'zi ochadi
+  currentSmenaId = null;
 
   save();
   closeModal();
   toast(diff>=0?`Smena yopildi! Foyda: +${fmt(diff)}`:`Smena yopildi. Kamomad: ${fmt(diff)}`);
-  isMobile()?renderMobileCashier():renderCashier();
+
+  // Dashboard ga qaytamiz + smena ochish tugmasi ko'rinsin
+  goPage('dashboard');
+
+  // 500ms kutib smena ochish modalini ko'rsat
+  setTimeout(()=>{
+    openModal('✅ Smena yopildi!',
+      '<div style="text-align:center;padding:8px 0 16px">'
+      +'<div style="font-size:52px;margin-bottom:12px">✅</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#22c55e;margin-bottom:8px">Smena muvaffaqiyatli yopildi!</div>'
+      +'<div style="font-size:13px;color:var(--text2);margin-bottom:4px">Foyda: <b style="color:'+(diff>=0?'#22c55e':'#ef4444')+'">'+fmt(diff)+'</b></div>'
+      +'</div>'
+      +'<button class="btn btn-primary btn-md w-full" style="justify-content:center;margin-bottom:10px" onclick="closeModal();openNewSmena()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:5px"><polygon points="5,3 19,12 5,21"/></svg>Yangi smena ochish</button>'
+      +'<button class="btn btn-ghost btn-md w-full" style="justify-content:center" onclick="closeModal()">Keyinroq ochaman</button>',380);
+  },500);
 }
 
 // ===== SMENA TARIXI — TAHRIRLASH / O'CHIRISH =====
