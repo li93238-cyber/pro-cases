@@ -692,41 +692,53 @@ async function flushSave() {
   const pending = {..._savePending};
   _savePending = {};
   if(!GAS_URL){ showSyncIndicator('local'); return; }
-  const promises = [];
-  if(pending.users)         promises.push(gasCall('saveUsers', users));
-  if(pending.products)      promises.push(gasCall('saveProducts', products));
-  if(pending.orders)        promises.push(gasCall('saveOrders', orders));
-  if(pending.expenses)      promises.push(gasCall('saveExpenses', expenses));
-  if(pending.categories)    promises.push(gasCall('saveCategories', categories));
-  if(pending.expCats)       promises.push(gasCall('saveExpCats', expCats));
-  if(pending.inventories)   promises.push(gasCall('saveInventories', inventories));
-  if(pending.priceHistory)  promises.push(gasCall('savePriceHistory', priceHistory));
-  if(pending.smenas)        promises.push(gasCall('saveSmenas', smenas));
-  if(pending.debts)         promises.push(gasCall('saveDebts', debts));
-  if(pending.damages)       promises.push(gasCall('saveDamages', damages));
-  if(pending.payTypes)      promises.push(gasCall('savePayTypes', payTypes));
-  if(pending.importHistory) promises.push(gasCall('saveImportHistory', importHistory));
-  if(pending.purchaseOrders)promises.push(gasCall('savePurchaseOrders', purchaseOrders));
-  if(pending.partners)      promises.push(gasCall('savePartners', partners));
-  if(pending.branches)      promises.push(gasCall('saveBranches', branches));
-  if(pending.pendingDelivery) promises.push(gasCall('savePendingDelivery', pendingDelivery));
-  if(pending.auditLog)      promises.push(gasCall('saveAuditLog', auditLog));
-  if(pending.loyaltyCards)  promises.push(gasCall('saveLoyaltyCards', loyaltyCards));
-  if(pending.bankAccounts)  promises.push(gasCall('saveBankAccounts', bankAccounts));
-  if(pending.appSettings)   promises.push(gasCall('saveAppSettings', appSettings));
-  if(pending.meta)          promises.push(gasCall('saveMeta', {currentSmenaId}));
-  if(promises.length===0) return;
+  if(Object.keys(pending).length === 0) return;
+
+  // Barcha o'zgargan ma'lumotlarni BIR so'rovda saveMulti orqali yuboramiz
+  const payload = {};
+  if(pending.users)          payload.users          = users;
+  if(pending.products)       payload.products       = products;
+  if(pending.orders)         payload.orders         = orders;
+  if(pending.expenses)       payload.expenses       = expenses;
+  if(pending.categories)     payload.categories     = categories;
+  if(pending.expCats)        payload.expCats        = expCats;
+  if(pending.inventories)    payload.inventories    = inventories;
+  if(pending.priceHistory)   payload.priceHistory   = priceHistory;
+  if(pending.smenas)         payload.smenas         = smenas;
+  if(pending.debts)          payload.debts          = debts;
+  if(pending.damages)        payload.damages        = damages;
+  if(pending.payTypes)       payload.payTypes       = payTypes;
+  if(pending.importHistory)  payload.importHistory  = importHistory;
+  if(pending.purchaseOrders) payload.purchaseOrders = purchaseOrders;
+  if(pending.partners)       payload.partners       = partners;
+  if(pending.branches)       payload.branches       = branches;
+  if(pending.pendingDelivery)payload.pendingDelivery= pendingDelivery;
+  if(pending.auditLog)       payload.auditLog       = auditLog;
+  if(pending.loyaltyCards)   payload.loyaltyCards   = loyaltyCards;
+  if(pending.bankAccounts)   payload.bankAccounts   = bankAccounts;
+  if(pending.appSettings)    payload.appSettings    = appSettings;
+
   try {
     showSyncIndicator('saving');
-    await Promise.all(promises);
+
+    // 1. Asosiy ma'lumotlarni saveMulti orqali atomik saqlaymiz
+    const result = await gasCall('saveMulti', payload);
+    if(!result) throw new Error('saveMulti qaytmadi');
+
+    // 2. Meta (smenaId) alohida — kichik so'rov
+    if(pending.meta) {
+      await gasCall('saveMeta', {currentSmenaId});
+    }
+
     showSyncIndicator('saved');
-    showPushNotif('saved',"Ma'lumotlar saqlandi");
   } catch(e) {
-    console.warn('Save error (offline?):', e.message);
+    console.warn('Save error:', e.message);
     showSyncIndicator('error');
     showPushNotif('error','Saqlashda xatolik! Internet aloqasini tekshiring.');
-    // Keyingi urinishda qayta sinab ko'rish
+    // Qayta urinish uchun pending ga qaytaramiz
     Object.assign(_savePending, pending);
+    // 3 soniyadan keyin qayta urinib ko'ramiz
+    setTimeout(flushSave, 3000);
   }
 }
 
