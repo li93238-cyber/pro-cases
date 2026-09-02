@@ -2032,44 +2032,42 @@ function calcKassaBalance(){
   const curOrders=currentBranchId?orders.filter(o=>o.branchId===currentBranchId):orders;
   const curExp=currentBranchId?expenses.filter(e=>e.branchId===currentBranchId||!e.branchId):expenses;
 
+  // Yopilgan smena faktual summalari — kassir kiritgan haqiqiy qoldiq
+  // faktual = o'sha paytdagi kassadagi haqiqiy pul (harajat + foyda allaqachon hisobga olingan)
+  const closedSmenasCash = smenas
+    .filter(s => s.closed && s.faktual != null)
+    .reduce((sum, s) => sum + (s.faktual || 0), 0);
+
   // Joriy (ochiq) smena savdosi
-  const curSmenaOrders=curOrders.filter(o=>o.smenaId===currentSmenaId);
-  const curRevenue=curSmenaOrders.reduce((s,o)=>{
-    const ret=(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0);
-    return s+(o.total-ret);
-  },0);
+  const curSmenaOrders = curOrders.filter(o => o.smenaId === currentSmenaId);
+  const curRevenue = curSmenaOrders.reduce((s, o) => {
+    const ret = (o.returnedItems || []).reduce((r, ri) => r + ri.price * ri.qty, 0);
+    return s + (o.total - ret);
+  }, 0);
 
-  // Joriy smena harajatlar (bank_transfer, bank_to_kassa va boshqalar)
-  const curExpenses=curExp.filter(e=>
-    e.smenaId===currentSmenaId&&
-    e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'
-  ).reduce((s,e)=>s+e.amount,0);
+  // Joriy smena oddiy harajatlar (bank_transfer, smena_profit, damage, partner_income bundan tashqari)
+  const curExpenses = curExp.filter(e =>
+    e.smenaId === currentSmenaId &&
+    e.type !== 'smena_profit' &&
+    e.type !== 'damage' &&
+    e.type !== 'partner_income' &&
+    e.type !== 'bank_transfer' &&
+    e.type !== 'bank_to_kassa'
+  ).reduce((s, e) => s + (e.amount || 0), 0);
 
-  // Yopilgan smena faktual summalari
-  const closedSmenasCash=smenas.filter(s=>s.closed&&s.faktual!=null).reduce((sum,s)=>{
-    // Faktual — o'sha smena yopilgandagi kassadagi haqiqiy pul
-    const smenaExpAfterClose=curExp.filter(e=>
-      e.smenaId===s.id&&
-      e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'&&
-      new Date(e.date)>new Date(s.closeTime||0)
-    ).reduce((x,e)=>x+e.amount,0);
-    return sum+s.faktual-smenaExpAfterClose;
-  },0);
+  // Kassa ↔ Bank o'tkazmalar (barcha smena bo'yicha)
+  const kassaToBank = curExp.filter(e => e.type === 'bank_transfer')
+    .reduce((s, e) => s + (e.amount || 0), 0);
+  const bankToKassa = curExp.filter(e => e.type === 'bank_to_kassa')
+    .reduce((s, e) => s + Math.abs(e.amount || 0), 0);
 
-  // Bank dan kassa ga kelgan pul (bank_to_kassa)
-  const bankToKassa=curExp.filter(e=>e.type==='bank_to_kassa')
-    .reduce((s,e)=>s+Math.abs(e.amount),0);
-
-  // Kassa dan bank ga ketgan pul (bank_transfer)
-  const kassaToBank=curExp.filter(e=>e.type==='bank_transfer')
-    .reduce((s,e)=>s+e.amount,0);
-
-  // Yopilgan smena bo'lsa: faktual + joriy smena savdo - joriy smena xarajat
-  if(smenas.some(s=>s.closed&&s.faktual!=null)){
-    return Math.max(0, closedSmenasCash + curRevenue - curExpenses);
+  // Yopilgan smena bor bo'lsa: faktual + joriy smena (savdo - harajat) + bank transfers
+  if (smenas.some(s => s.closed && s.faktual != null)) {
+    return Math.max(0, closedSmenasCash + curRevenue - curExpenses - kassaToBank + bankToKassa);
   }
-  // Yopilgan smena yo'q: jami savdo - jami harajat
-  return Math.max(0, curRevenue - curExpenses);
+
+  // Yopilgan smena yo'q: faqat joriy smena
+  return Math.max(0, curRevenue - curExpenses - kassaToBank + bankToKassa);
 }
 
 function calcRealRevenue(orderList){
