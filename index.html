@@ -644,12 +644,12 @@ let importHistory = []; // [{id, date, by, items:[{pid,name,qty,cost,price}], so
 let purchaseOrders = []; // [{id, date, by, supplier, items:[{pid,name,qty,cost}], status, note, expectedDate, receivedDate}]
 let partners = []; // [{id, name, phone, type, note, balance, transactions}]
 let branches = []; // [{id, name, address, phone, managerId, staffIds:[], active:true, note}]
-let auditLog  = []; // [{id,date,by,action,details,page}]
 let loyaltyCards = []; // [{id,cardNo,customerName,phone,discount,totalSpent,createdAt}]
 let bankAccounts = []; // [{id,name,balance,transactions:[{id,date,amount,type,desc}]}]
 let appSettings = {
   companyName:'Pro Cases', companyAddress:'', companyPhone:'', companyLogo:'',
   receiptFooter:"Xaridingiz uchun rahmat!", language:'uz', lowStockThreshold:10,
+  kassaStart:0, // Boshlang'ich kassa qoldig'i (tizim ishga tushgan paytdagi naqd pul)
   budgets:{}, // {catName: monthlyLimit}
   giftRules:[], // [{id,name,productId,buyQty,freeQty,active}]
   bulkDiscounts:[], // [{id,category,minQty,discountPct,active}]
@@ -679,10 +679,10 @@ function save(sections=null) {
   lsSet('payTypes', payTypes); lsSet('importHistory', importHistory);
   lsSet('purchaseOrders', purchaseOrders); lsSet('partners', partners); lsSet('branches', branches);
   lsSet('pendingDelivery', pendingDelivery);
-  lsSet('auditLog', auditLog); lsSet('loyaltyCards', loyaltyCards);
+  lsSet('loyaltyCards', loyaltyCards);
   lsSet('bankAccounts', bankAccounts); lsSet('appSettings', appSettings);
 
-  const toSave = sections || ['users','products','orders','expenses','categories','inventories','priceHistory','expCats','smenas','meta','debts','damages','payTypes','importHistory','purchaseOrders','partners','branches','auditLog','loyaltyCards','bankAccounts','appSettings','pendingDelivery'];
+  const toSave = sections || ['users','products','orders','expenses','categories','inventories','priceHistory','expCats','smenas','meta','debts','damages','payTypes','importHistory','purchaseOrders','partners','branches','loyaltyCards','bankAccounts','appSettings','pendingDelivery'];
   toSave.forEach(s => { _savePending[s] = true; });
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(flushSave, 400);
@@ -713,7 +713,6 @@ async function flushSave() {
   if(pending.partners)       payload.partners       = partners;
   if(pending.branches)       payload.branches       = branches;
   if(pending.pendingDelivery)payload.pendingDelivery= pendingDelivery;
-  if(pending.auditLog)       payload.auditLog       = auditLog;
   if(pending.loyaltyCards)   payload.loyaltyCards   = loyaltyCards;
   if(pending.bankAccounts)   payload.bankAccounts   = bankAccounts;
   if(pending.appSettings)    payload.appSettings    = appSettings;
@@ -1115,7 +1114,7 @@ function hasPerm(key){
     viewer:    ['dashboard'],
   };
   var pageKeys=['dashboard','cashier','orders','delivery','warehouse','inventory',
-    'operations','analytics','debts','partners','bank','loyalty','chat','audit',
+    'operations','analytics','debts','partners','bank','loyalty','chat',
     'branches','settings'];
 
   if(pageKeys.includes(key)){
@@ -1186,7 +1185,6 @@ const ALL_NAV_ITEMS=[
   {page:'analytics',label:'Analitika',icon:'<line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>',adminOnly:true},
   {page:'loyalty',label:'Chegirma kartalar',icon:'<rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/>',adminOnly:false},
   {page:'bank',label:'Bank hisob',icon:'<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>',adminOnly:true},
-  {page:'audit',label:'Audit log',icon:'<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/>',adminOnly:true},
   {page:'settings',label:'Sozlamalar',icon:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/>',adminOnly:false},
 ];
 
@@ -1463,7 +1461,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         purchaseOrders= allData.purchaseOrders || lsGet('purchaseOrders', []);
         partners     = allData.partners     || lsGet('partners', []);
         branches     = allData.branches     || lsGet('branches', []);
-        auditLog     = allData.auditLog     || lsGet('auditLog', []);
         loyaltyCards = allData.loyaltyCards || lsGet('loyaltyCards', []);
         bankAccounts = allData.bankAccounts || lsGet('bankAccounts', []);
         pendingDelivery = allData.pendingDelivery || lsGet('pendingDelivery', []);
@@ -1476,7 +1473,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         lsSet('debts',debts); lsSet('damages',damages); lsSet('importHistory',importHistory);
         lsSet('purchaseOrders',purchaseOrders); lsSet('partners',partners); lsSet('branches',branches);
         lsSet('pendingDelivery',pendingDelivery);
-        lsSet('auditLog',auditLog); lsSet('loyaltyCards',loyaltyCards); lsSet('bankAccounts',bankAccounts);
+        lsSet('loyaltyCards',loyaltyCards); lsSet('bankAccounts',bankAccounts);
         if(allData.appSettings) appSettings = {...appSettings, ...allData.appSettings};
         payTypes     = (allData.payTypes&&allData.payTypes.length) ? allData.payTypes : payTypes;
         const meta   = allData.meta || {};
@@ -1505,7 +1502,6 @@ window.addEventListener('DOMContentLoaded', async () => {
         purchaseOrders= lsGet('purchaseOrders', []);
         partners     = lsGet('partners', []);
         branches     = lsGet('branches', []);
-        auditLog     = lsGet('auditLog', []);
         loyaltyCards = lsGet('loyaltyCards', []);
         bankAccounts = lsGet('bankAccounts', []);
         toast('Oflayn rejim — lokal cache ishlatilmoqda', 'error');
@@ -1914,7 +1910,7 @@ function skeletonStats(n=4){
 }
 
 // ===== NAVIGATION =====
-const pageTitles={dashboard:'Boshqaruv',cashier:'Kassa',orders:'Buyurtmalar',warehouse:'Ombor',inventory:'Inventarizatsiya',operations:'Kassa Amaliyot',users:'Foydalanuvchilar',chat:'Xabarlar',debts:'Qarzlar',settings:'Sozlamalar',partners:'Hamkorlar',branches:'Filiallar',analytics:'Analitika',loyalty:'Chegirma kartalar',bank:'Bank hisoblar',audit:'Audit log',delivery:'Mahsulot topshirish'};
+const pageTitles={dashboard:'Boshqaruv',cashier:'Kassa',orders:'Buyurtmalar',warehouse:'Ombor',inventory:'Inventarizatsiya',operations:'Kassa Amaliyot',users:'Foydalanuvchilar',chat:'Xabarlar',debts:'Qarzlar',settings:'Sozlamalar',partners:'Hamkorlar',branches:'Filiallar',analytics:'Analitika',loyalty:'Chegirma kartalar',bank:'Bank hisoblar',delivery:'Mahsulot topshirish'};
 const isMobile=()=>window.innerWidth<=768;
 
 function checkOldSmena(){
@@ -2022,7 +2018,6 @@ function goPage(page){
     case'analytics':renderAnalytics();break;
     case'loyalty':renderLoyalty();break;
     case'bank':renderBankAccounts();break;
-    case'audit':renderAuditLog();break;
     case'delivery':renderPendingDeliveryDashboard();break;
   }
 }
@@ -2040,71 +2035,57 @@ function closeModalOverlay(e){if(e.target===document.getElementById('modal-overl
 // ===== REVENUE HELPERS =====
 // Haqiqiy tushum: yopilgan smenalar faktual + joriy smena savdo (qaytarilgansiz)
 // Kassa qoldig'ini hisoblash
+// Harajat qaysi hisobdan to'langan: 'kassa' yoki 'bank'
+function expSource(e){
+  if(!e) return 'kassa';
+  if(e.source==='bank'&&e.bankId) return 'bank';
+  return 'kassa';
+}
+
 function calcKassaBalance(){
-  const curOrders=currentBranchId?orders.filter(o=>o.branchId===currentBranchId):orders;
-  const curExp=currentBranchId?expenses.filter(e=>e.branchId===currentBranchId||!e.branchId):expenses;
+  const curOrders = currentBranchId ? orders.filter(function(o){return o.branchId===currentBranchId;}) : orders;
+  const curExp    = currentBranchId ? expenses.filter(function(e){return e.branchId===currentBranchId||!e.branchId;}) : expenses;
 
-  // Yopilgan smena faktual summalari — kassir kiritgan haqiqiy qoldiq
-  // faktual = o'sha paytdagi kassadagi haqiqiy pul (harajat + foyda allaqachon hisobga olingan)
-  const closedSmenasCash = smenas
-    .filter(s => s.closed && s.faktual != null)
-    .reduce((sum, s) => sum + (s.faktual || 0), 0);
+  // 1) Boshlang'ich kassa (sozlamalardan)
+  let bal = Number(appSettings.kassaStart||0);
 
-  // Joriy (ochiq) smena savdosi
-  const curSmenaOrders = curOrders.filter(o => o.smenaId === currentSmenaId);
-  const curRevenue = curSmenaOrders.reduce((s, o) => {
-    const ret = (o.returnedItems || []).reduce((r, ri) => r + ri.price * ri.qty, 0);
-    return s + (o.total - ret);
-  }, 0);
+  // 2) BARCHA savdo (qaytarilgan mahsulot summasi ayiriladi) — smena farqi yo'q
+  bal += curOrders.reduce(function(s,o){
+    const ret=(o.returnedItems||[]).reduce(function(r,ri){return r+ri.price*ri.qty;},0);
+    return s+(o.total-ret);
+  },0);
 
-  // Joriy smena oddiy harajatlar (bank_transfer, smena_profit, damage, partner_income bundan tashqari)
-  const curExpenses = curExp.filter(e =>
-    e.smenaId === currentSmenaId &&
-    e.type !== 'smena_profit' &&
-    e.type !== 'damage' &&
-    e.type !== 'partner_income' &&
-    e.type !== 'bank_transfer' &&
-    e.type !== 'bank_to_kassa'
-  ).reduce((s, e) => s + (e.amount || 0), 0);
+  // 3) BARCHA kirim/chiqim amaliyotlari
+  curExp.forEach(function(e){
+    const t=e.type||'';
+    // smena_profit va damage — faqat hisobot yozuvi, kassada pul harakati yo'q
+    if(t==='smena_profit'||t==='damage') return;
+    // KIRIM: hamkor to'lovi, bankdan kassaga
+    if(t==='partner_income'||t==='bank_to_kassa'){ bal += Math.abs(e.amount||0); return; }
+    // CHIQIM: kassadan bankka o'tkazma
+    if(t==='bank_transfer'){ bal -= (e.amount||0); return; }
+    // Oddiy harajat — FAQAT kassadan to'langan bo'lsa kassadan ayiriladi.
+    // (eski yozuvlarda source yo'q — ular kassadan deb hisoblanadi)
+    if(expSource(e)==='kassa') bal -= (e.amount||0);
+  });
 
-  // Kassa ↔ Bank o'tkazmalar (barcha smena bo'yicha)
-  const kassaToBank = curExp.filter(e => e.type === 'bank_transfer')
-    .reduce((s, e) => s + (e.amount || 0), 0);
-  const bankToKassa = curExp.filter(e => e.type === 'bank_to_kassa')
-    .reduce((s, e) => s + Math.abs(e.amount || 0), 0);
+  // 4) Yopilgan smenalardagi kamomad/izlishek tuzatmasi
+  //    kassaDiff = faktual - kutilgan  (manfiy = kamomad, musbat = izlishek)
+  smenas.forEach(function(s){
+    if(s.closed && s.kassaDiff!=null) bal += Number(s.kassaDiff)||0;
+  });
 
-  // Yopilgan smena bor bo'lsa: faktual + joriy smena (savdo - harajat) + bank transfers
-  if (smenas.some(s => s.closed && s.faktual != null)) {
-    return Math.max(0, closedSmenasCash + curRevenue - curExpenses - kassaToBank + bankToKassa);
-  }
-
-  // Yopilgan smena yo'q: faqat joriy smena
-  return Math.max(0, curRevenue - curExpenses - kassaToBank + bankToKassa);
+  // Math.max(0,...) YO'Q — minus qoldiq ko'rinishi kerak (xatolik signali)
+  return bal;
 }
 
 function calcRealRevenue(orderList){
-  let rev=0;
-  // Yopilgan smena bo'yicha: o'sha smena faktual summasini ishlatamiz
-  const closedSmenaIds=new Set(smenas.filter(s=>s.closed).map(s=>s.id));
-  // Joriy smena orderlari uchun: to'liq sotilgan summa (qaytarilgan AYIRILMAYDI)
-  // Chunki qaytarish — pul kassadan chiqmaydi, faqat tovar qaytadi.
-  // Kassadan pul chiqishi faqat "Harajat > Qaytarish" orqali alohida amalga oshiriladi.
-  orderList.forEach(o=>{
-    if(closedSmenaIds.has(o.smenaId)){
-      // Bu smena uchun faktual hisob alohida — smena darajasida (quyida qo'shiladi)
-    } else {
-      // Joriy/ochiq smena — to'liq sotilgan summa, qaytarilgan ayirilmaydi
-      rev+=o.total;
-    }
-  });
-  // Yopilgan smenalar uchun faktual qo'shamiz (faqat shu orderlar tegishli smena faktual)
-  const smenaMap={};
-  smenas.filter(s=>s.closed&&s.faktual!=null).forEach(s=>{smenaMap[s.id]=s;});
-  // Qaysi smena orderlar bor? Orderlar ichida yopilgan smena ID lari
-  const coveredSmenas=new Set();
-  orderList.forEach(o=>{if(closedSmenaIds.has(o.smenaId))coveredSmenas.add(o.smenaId);});
-  coveredSmenas.forEach(sid=>{if(smenaMap[sid])rev+=smenaMap[sid].faktual;});
-  return rev;
+  // TUSHUM = sof savdo (qaytarilgan mahsulot summasi ayiriladi).
+  // Smena faktuali BU YERDA ishlatilmaydi — u faqat kassa tekshiruvi uchun.
+  return orderList.reduce(function(s,o){
+    const ret=(o.returnedItems||[]).reduce(function(r,ri){return r+ri.price*ri.qty;},0);
+    return s+(o.total-ret);
+  },0);
 }
 
 // Savdo summasi (sotilgan summa, qaytarilganni hisobga olmasdan — kassa qoldiqqa mos)
@@ -2420,7 +2401,10 @@ function renderMobileOperations(){
     </div>`:''}
     <div class="mob-stat-scroll">${stats.map(s=>`<div class="mob-stat-card"><div style="font-size:10px;color:var(--text3)">${s.label}</div><div style="font-size:16px;font-weight:800;color:${s.color}">${s.value}</div></div>`).join('')}</div>
     <div style="display:flex;gap:8px;margin-bottom:12px">
-      ${hasPerm('expenses_add')?`<button class="btn btn-primary btn-sm" style="flex:1;justify-content:center" onclick="openExpModal()">+ Harajat qo'shish</button>`:''}
+      ${hasPerm('expenses_add')?`<button class="btn btn-primary btn-sm" style="flex:1;justify-content:center" onclick="openTransferModal()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
+        Kassa → Bank transfer</button>`:''}
+      <button class="btn btn-outline btn-sm" style="flex:1;justify-content:center" onclick="goPage('bank')">Harajatlar (Bank)</button>
     </div>
     <div class="mob-section-title">So'nggi harajatlar</div>
     ${recentExp||'<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Harajatlar yo\'q</div>'}`;
@@ -2539,7 +2523,9 @@ function getDebts(){
 function openNewSmena(){
   const sid='SM-'+Date.now().toString(36).toUpperCase();
   currentSmenaId=sid;
-  const smena={id:sid,openTime:new Date().toISOString(),openBy:currentUser.name,closed:false};
+  // Ochilish qoldig'i = smena ochilgan paytdagi kassadagi pul (oldingi smenadan qolgan)
+  const openBalance=calcKassaBalance();
+  const smena={id:sid,openTime:new Date().toISOString(),openBy:currentUser.name,closed:false,openBalance:openBalance};
   if(currentBranchId)smena.branchId=currentBranchId;
   smenas.push(smena);
   save();
@@ -3344,7 +3330,6 @@ function completeSell(total,da,partnerId,partnerNote){
   });
 
   pendingDelivery.push(newEntry);
-  addAudit('Sotuv (kutilmoqda)',`${fmt(total)} — ${cart.length} mahsulot`,'Kassa');
 
   const receiptData={id:oid,items:cart.map(i=>({...i})),total,discount:da,payType:currentPayType,date:now,cashier:currentUser.name,partnerId};
   cart=[];
@@ -3520,7 +3505,6 @@ function confirmDeliveryItem(id){
     pendingDelivery=pendingDelivery.filter(x=>x.id!==id);
     save();
     toast(`${fmt(o.total)} kassa qoldig'iga qo'shildi!`);
-    addAudit('Mahsulot chiqim',`${o.id} buyurtmaga o'tdi, ${fmt(o.total)}`,'Mahsulot topshirish');
     renderPendingDeliveryDashboard();
   });
 }
@@ -3546,7 +3530,6 @@ function confirmAllDelivery(){
     pendingDelivery=pendingDelivery.filter(o=>!ids.has(o.id));
     save();
     toast(`${pendingList.length} ta buyurtma chiqim qilindi!`);
-    addAudit('Barchasini chiqim',`${pendingList.length} ta, ${fmt(totalSum)}`,'Mahsulot topshirish');
     renderPendingDeliveryDashboard();
   });
 }
@@ -3562,7 +3545,6 @@ function cancelDeliveryItem(id){
     pendingDelivery=pendingDelivery.filter(x=>x.id!==id);
     save();
     toast('Buyurtma bekor qilindi. Mahsulotlar omborga qaytarildi.');
-    addAudit('Buyurtma bekor',`${o.id} bekor, omborga qaytdi`,'Mahsulot topshirish');
     renderPendingDeliveryDashboard();
   });
 }
@@ -4599,7 +4581,6 @@ function saveQrKirim(){
   });
   // Import tarixi
   importHistory.push({id:genId('IMP'),date:now,by:currentUser.name,items:impItems,type:'QR kirim',total:impItems.length});
-  addAudit('QR kodli kirim',`${_qrKirimList.length} ta mahsulot, ${impItems.reduce((s,i)=>s+i.qty,0)} dona`,'Ombor');
   _qrKirimList=[];
   save();
   toast(`Kirim muvaffaqiyatli saqlandi! ${impItems.length} ta mahsulot yangilandi.`);
@@ -5436,15 +5417,6 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
       </div></td>`:'<td></td>'}
     </tr>`;}).join('');
 
-  const expRows=[...filtExp].filter(e=>e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income').reverse().map(e=>`<tr>
-    <td>${badge(e.category||'Boshqa','blue')}</td>
-    <td style="color:#64748b">${e.desc||'—'}</td>
-    <td style="font-weight:700;color:#ef4444">${fmt(e.amount)}</td>
-    <td style="color:#64748b">${fmtDate(e.date)}</td>
-    <td>${e.by}</td>
-    ${hasPerm('expenses_delete')?`<td><button class="btn btn-danger btn-sm" onclick="deleteExpense(${e.id})">${svgIcon('trash',13)}</button></td>`:'<td></td>'}
-  </tr>`).join('');
-
   const orderRows=filtOrders.map(o=>`<tr><td style="color:#6366f1;font-weight:700">${o.id}</td><td style="color:#64748b">${fmtDate(o.date)}</td><td>${o.cashier}</td><td>${badge(getPayTypeName(o.payType),o.payType==='naqd'?'green':o.payType==='karta'?'blue':'yellow')}</td><td style="font-weight:700">${fmt(o.total)}</td></tr>`).join('');
 
   const profitBars=last7profit.map(d=>{
@@ -5547,17 +5519,20 @@ function renderOperations(fromDate='',toDate='',showAllFlag=''){
     </div>
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Harajatlar</span>
+        <span class="card-title">Kassa amaliyotlari</span>
         <div class="flex gap-8">
-          ${hasPerm('expenses_add')?`<button class="btn btn-primary btn-sm" onclick="openExpModal()">${svgIcon('plus',14)} Harajat qo'shish</button>`:''}
-          ${hasPerm('expenses_add')?`<button class="btn btn-outline btn-sm" onclick="openTransferModal()" style="color:#6366f1;border-color:#6366f150">
+          ${hasPerm('expenses_add')?`<button class="btn btn-primary btn-sm" onclick="openTransferModal()">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17,1 21,5 17,9"/><path d="M3 11V9a4 4 0 014-4h14"/><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg>
-            Transfer
+            Kassa → Bank transfer
           </button>`:''}
         </div>
       </div>
-      <table><thead><tr><th>Kategoriya</th><th>Izoh</th><th>Summa</th><th>Sana</th><th>Kim</th><th></th></tr></thead>
-      <tbody>${expRows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#94a3b8">Harajatlar yo\'q</td></tr>'}</tbody></table>
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.2);border-radius:10px;padding:12px 14px">
+        <div style="font-size:13px;color:var(--text2)">
+          Harajat kiritish va harajatlar tarixi <b>Bank hisob</b> bo'limiga ko'chirilgan.
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="goPage('bank')">Bank hisob bo'limi →</button>
+      </div>
     </div>
     ${smenaRows.length>0?`<div class="card">
       <div class="card-header">
@@ -5671,19 +5646,33 @@ function saveTransfer(){
     return{...a,balance:newBalance,transactions:txns};
   });
 
-  addAudit('Bank transfer',`${fmt(amount)} → ${bank.name}`,'Kassa Amaliyot');
   save();
   closeModal();
   toast(`${fmt(amount)} ${bank.name} hisobiga o'tkazildi!`);
   renderOperations();
 }
 
-function openExpModal(){
-  if(checkOldSmena()){showOldSmenaWarning();return;}
-  if(!hasActiveSmena()){showNoSmenaWarning();return;}
+function openExpModal(defBankId){
   if(!expCats.includes('Qaytarish')) expCats.unshift('Qaytarish');
   const catOpts=expCats.map(c=>`<option value="${c}">${c}</option>`).join('');
+  const accs=bankAccounts.filter(a=>a.active!==false);
+  if(accs.length===0){
+    openModal('Bank hisob yo\'q',
+      '<div style="text-align:center;padding:8px 0 16px">'
+      +'<div style="font-size:44px;margin-bottom:10px">🏦</div>'
+      +'<div style="font-size:15px;font-weight:700;color:#f59e0b;margin-bottom:8px">Avval bank hisob yarating</div>'
+      +'<div style="font-size:13px;color:var(--text2)">Harajatlar bank hisob raqamidan chiqariladi. Hisob bo\'lmasa harajat kiritib bo\'lmaydi.</div>'
+      +'</div>'
+      +'<button class="btn btn-primary btn-md w-full" style="justify-content:center" onclick="closeModal();openBankEditModal(null)">+ Yangi bank hisob</button>',380);
+    return;
+  }
+  const srcOpts=accs.map(a=>`<option value="${a.id}" ${defBankId===a.id?'selected':''}>${a.name} — ${fmt(a.balance||0)}</option>`).join('');
   openModal('Harajat qo\'shish',`
+    <div class="form-group">
+      <label class="form-label">Bank hisob raqami <span style="color:#ef4444">*</span></label>
+      <select id="exp-source" class="form-input" onchange="onExpBankChange()">${srcOpts}</select>
+      <div id="exp-bank-info" style="font-size:11px;color:var(--text3);margin-top:4px"></div>
+    </div>
     <div class="form-group">
       <label class="form-label">Kategoriya <span style="color:#ef4444">*</span></label>
       <div class="flex gap-8">
@@ -5704,6 +5693,11 @@ function openExpModal(){
     <div class="form-group"><label class="form-label">Izoh <span style="color:#94a3b8;font-weight:400">(ixtiyoriy)</span></label><input id="exp-desc" class="form-input" placeholder="Qo'shimcha izoh..." /></div>
     <div class="form-group"><label class="form-label">Summa (so'm) <span style="color:#ef4444">*</span></label><input id="exp-amount" type="number" class="form-input" placeholder="50000" oninput="showNumHint(this)" /></div>
     <div class="flex gap-10"><button class="btn btn-primary btn-md" onclick="saveExpense()">${svgIcon('check',16)} Saqlash</button><button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button></div>`,480);
+  // Boshlang'ich kategoriya holatini qo'llaymiz (Qaytarish tanlangan bo'lsa manba = kassa)
+  setTimeout(function(){
+    const s=document.getElementById('exp-cat');
+    if(s) onExpCatChange(s.value);
+  },0);
 }
 
 function buildReturnableOrderOptions(){
@@ -5721,6 +5715,17 @@ function buildReturnableOrderOptions(){
 function onExpCatChange(cat){
   const sec=document.getElementById('exp-return-section');
   if(sec) sec.style.display=(cat==='Qaytarish')?'block':'none';
+  const srcSel=document.getElementById('exp-source');
+  const srcInfo=document.getElementById('exp-bank-info');
+  if(srcSel){
+    // Qaytarish — pul mijozga kassadan naqd qaytariladi, bank ishtirok etmaydi
+    srcSel.disabled=(cat==='Qaytarish');
+    if(srcInfo){
+      srcInfo.innerHTML=(cat==='Qaytarish')
+        ?'<span style="color:#f59e0b">Qaytarish summasi kassadan chiqadi — bank hisob ishlatilmaydi.</span>'
+        :bankInfoText(srcSel.value);
+    }
+  }
   if(cat!=='Qaytarish'){
     const rItems=document.getElementById('exp-return-items');
     if(rItems) rItems.style.display='none';
@@ -5729,6 +5734,18 @@ function onExpCatChange(cat){
     const retSel=document.getElementById('exp-return-order');
     if(retSel) retSel.value='';
   }
+}
+
+function bankInfoText(bid){
+  const b=bankAccounts.find(a=>a.id===bid);
+  if(!b) return '';
+  return 'Joriy qoldiq: <b style="color:var(--accent2)">'+fmt(b.balance||0)+'</b> — harajat shu hisobdan ayiriladi.';
+}
+
+function onExpBankChange(){
+  const sel=document.getElementById('exp-source');
+  const info=document.getElementById('exp-bank-info');
+  if(sel&&info) info.innerHTML=bankInfoText(sel.value);
 }
 
 function onReturnOrderSelect(oid){
@@ -5810,8 +5827,27 @@ function saveExpense(){
   const cat=((document.getElementById('exp-cat')||{}).value||'').trim();
   const desc=((document.getElementById('exp-desc')||{}).value||'').trim();
   const amount=parseFloat((document.getElementById('exp-amount')||{}).value||0);
+  const srcVal=((document.getElementById('exp-source')||{}).value||'');
   if(!cat||!amount){toast('Kategoriya va summa majburiy!','error');return;}
-  const entry={id:Date.now(),category:cat,desc,amount,date:new Date().toISOString(),by:currentUser.name,smenaId:currentSmenaId,branchId:currentBranchId||null};
+
+  // Qaytarish — yagona istisno: pul mijozga kassadan naqd qaytariladi.
+  // Qolgan barcha harajatlar bank hisob raqamidan chiqariladi.
+  const isKassa=(cat==='Qaytarish');
+  const bank=isKassa?null:bankAccounts.find(a=>a.id===srcVal);
+  if(!isKassa&&!bank){toast('Bank hisob raqamini tanlang!','error');return;}
+
+  // Manba bo'yicha tekshiruvlar
+  if(isKassa){
+    if(checkOldSmena()){showOldSmenaWarning();return;}
+    if(!hasActiveSmena()){showNoSmenaWarning();return;}
+    const kb=calcKassaBalance();
+    if(amount>kb){toast(`Kassada yetarli mablag' yo'q! Qoldiq: ${fmt(kb)}`,'error');return;}
+  } else {
+    if(amount>(bank.balance||0)){toast(`${bank.name} hisobida yetarli mablag' yo'q! Qoldiq: ${fmt(bank.balance||0)}`,'error');return;}
+  }
+
+  const entry={id:Date.now(),category:cat,desc,amount,date:new Date().toISOString(),by:currentUser.name,smenaId:currentSmenaId,branchId:currentBranchId||null,
+    source:isKassa?'kassa':'bank', bankId:isKassa?null:bank.id};
 
   if(cat==='Qaytarish'){
     const retOid=((document.getElementById('exp-return-order')||{}).value||'').trim();
@@ -5850,9 +5886,24 @@ function saveExpense(){
     }
   }
 
+  // Bankdan to'langan bo'lsa — bank balansidan ayiramiz va tranzaksiya yozamiz
+  if(!isKassa){
+    const txnId=genId('TXN');
+    entry.bankTxnRef=txnId;
+    bankAccounts=bankAccounts.map(a=>{
+      if(a.id!==bank.id)return a;
+      return{...a,balance:(a.balance||0)-amount,transactions:[...(a.transactions||[]),{
+        id:txnId,date:entry.date,type:'out',amount:amount,
+        desc:'Harajat: '+cat+(desc?' — '+desc:''),by:currentUser.name,expenseId:entry.id
+      }]};
+    });
+  }
+
   expenses.push(entry);
   save();
-  toast('Harajat qo\'shildi!');closeModal();renderOperations();
+  toast(isKassa?'Harajat kassadan chiqarildi!':`Harajat ${bank.name} hisobidan chiqarildi!`);
+  closeModal();
+  if(window._currentPage==='bank') renderBankAccounts(); else renderOperations();
 }
 
 function deleteExpense(id){
@@ -5875,10 +5926,18 @@ function deleteExpense(id){
         }
       }
     }
+    // Bankdan to'langan harajat — bank balansini qaytaramiz
+    if(exp&&expSource(exp)==='bank'&&exp.bankId){
+      bankAccounts=bankAccounts.map(a=>{
+        if(a.id!==exp.bankId)return a;
+        return{...a,balance:(a.balance||0)+(exp.amount||0),
+          transactions:(a.transactions||[]).filter(t=>t.id!==exp.bankTxnRef&&t.expenseId!==exp.id)};
+      });
+    }
     expenses=expenses.filter(e=>e.id!==id);
-    save(); // ← BU YETISHMAGAN EDI
+    save();
     toast('Harajat o\'chirildi!','error');
-    renderOperations();
+    if(window._currentPage==='bank') renderBankAccounts(); else renderOperations();
   });
 }
 
@@ -5889,10 +5948,14 @@ function exportExpensesExcel(fromDate='',toDate='',showAll=false){
     if(toDate){const td=new Date(toDate);td.setHours(23,59,59);filtExp=filtExp.filter(e=>new Date(e.date)<=td);}
   }
   if(filtExp.length===0){toast('Harajatlar yo\'q!','error');return;}
-  const headers=['Kategoriya','Izoh','Summa (so\'m)','Bajaruvchi','Sana'];
-  const rows=filtExp.map(e=>[e.category||'Boshqa', e.desc||'', e.amount, e.by, fmtDate(e.date)]);
+  const headers=['Kategoriya','Izoh','Manba','Summa (so\'m)','Bajaruvchi','Sana'];
+  const rows=filtExp.map(e=>{
+    let src='Kassa';
+    if(expSource(e)==='bank'){const b=bankAccounts.find(a=>a.id===e.bankId);src=(b&&b.name)||'Bank';}
+    return[e.category||'Boshqa', e.desc||'', src, e.amount, e.by, fmtDate(e.date)];
+  });
   const total=filtExp.reduce((s,e)=>s+e.amount,0);
-  rows.push(['JAMI:','', total, '', '']);
+  rows.push(['JAMI:','','', total, '', '']);
   const suffix=showAll?'_butun_davr':fromDate||toDate?`_${fromDate||''}${toDate?'_'+toDate:''}`:'_'+new Date().toISOString().slice(0,10);
   downloadXlsx('harajatlar'+suffix+'.xlsx', headers, rows);
   toast('Harajatlar Excel yuklab olindi!');
@@ -6556,71 +6619,6 @@ function deleteBranch(bid){
   });
 }
 // ================================================================
-//  AUDIT LOG — Kim, qachon, nima qildi
-// ================================================================
-// ================================================================
-//  AUDIT LOG
-// ================================================================
-function renderAuditLog(srch,filterBy){
-  srch=srch||''; filterBy=filterBy||'';
-  let list=[...auditLog].reverse();
-  if(srch) list=list.filter(a=>(a.action||'').toLowerCase().includes(srch.toLowerCase())||(a.details||'').toLowerCase().includes(srch.toLowerCase())||(a.by||'').toLowerCase().includes(srch.toLowerCase()));
-  if(filterBy) list=list.filter(a=>a.by===filterBy);
-  const ulist=[...new Set(auditLog.map(a=>a.by).filter(Boolean))];
-  const rows=list.slice(0,200).map(a=>`<tr>
-    <td style="color:var(--text3);font-size:12px;white-space:nowrap">${fmtDate(a.date)}</td>
-    <td style="font-weight:600">${a.by||'—'}</td>
-    <td>${badge(a.action||'—','blue')}</td>
-    <td style="color:var(--text2);max-width:280px;font-size:12px">${a.details||'—'}</td>
-    <td style="color:var(--text3);font-size:12px">${a.page||'—'}</td>
-  </tr>`).join('');
-  document.getElementById('page-content').innerHTML=`
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">${svgIcon('list',14)} Audit log</span>
-        <div style="display:flex;gap:8px;align-items:center">
-          ${badge(auditLog.length+' ta','blue')}
-          <button class="btn btn-ghost btn-sm" onclick="exportAuditExcel()">${svgIcon('download',13)} Excel</button>
-          ${currentUser.role==='admin'?`<button class="btn btn-danger btn-sm" onclick="confirmDialog('Barcha yozuvlarni o\'chirishni tasdiqlaysizmi?',()=>{auditLog=[];save();renderAuditLog();toast('Tozalandi!','error');})">${svgIcon('trash',13)} Tozalash</button>`:''}
-        </div>
-      </div>
-      <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
-        <input class="form-input" placeholder="Qidirish..." style="flex:1;min-width:160px" value="${srch}"
-          oninput="renderAuditLog(this.value,document.getElementById('audit-filter')?.value||'')"/>
-        <select id="audit-filter" class="form-input" style="width:160px"
-          onchange="renderAuditLog(document.querySelector('.audit-inp')?.value||'',this.value)">
-          <option value="">Barcha foydalanuvchilar</option>
-          ${ulist.map(u=>`<option value="${u}" ${u===filterBy?'selected':''}>${u}</option>`).join('')}
-        </select>
-      </div>
-      <div style="overflow:auto">
-        <table><thead><tr><th>Sana</th><th>Kim</th><th>Amal</th><th>Tafsilot</th><th>Sahifa</th></tr></thead>
-        <tbody>${rows||'<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text3)">Audit log bo\'sh</td></tr>'}</tbody></table>
-      </div>
-    </div>`;
-}
-
-function exportAuditExcel(){
-  const headers=['Sana','Kim','Amal','Tafsilot','Sahifa'];
-  const rows=[...auditLog].reverse().map(a=>[fmtDate(a.date),a.by||'—',a.action||'—',a.details||'—',a.page||'—']);
-  downloadXlsx('audit_log_'+new Date().toISOString().slice(0,10)+'.xlsx',headers,rows);
-  toast('Audit log Excel yuklab olindi!');
-}
-
-function addAudit(action, details='', page=''){
-  if(!currentUser)return;
-  auditLog.unshift({
-    id:genId('AUD'), date:new Date().toISOString(),
-    by:currentUser.name, role:currentUser.role,
-    action, details, page
-  });
-  if(auditLog.length>500) auditLog=auditLog.slice(0,500);
-  // Audit log ni qo'shimcha saqlaymiz
-  lsSet('auditLog', auditLog);
-}
-
-// ================================================================
-// ================================================================
 function renderAnalytics(){
   const now=new Date();
   // Local vaqt bilan ishlash (UTC emas)
@@ -7166,7 +7164,6 @@ function saveLoyaltyCard(id){
     toast('Yangi karta qo\'shildi!');
   }
   save(); closeModal(); renderLoyalty();
-  addAudit('Chegirma karta '+(id&&id!=='null'?'tahrirlandi':'yaratildi'),name,'Chegirma kartalar');
 }
 
 function deleteLoyalty(id){
@@ -7214,6 +7211,9 @@ function renderBankAccounts(){
         <button class="btn btn-danger btn-sm" onclick="openBankTxnModal('${b.id}','expense')">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/></svg> Chiqim
         </button>
+        <button class="btn btn-warning btn-sm" onclick="openExpModal('${b.id}')">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg> Harajat
+        </button>
         <button class="btn btn-outline btn-sm" onclick="openBankToKassaModal('${b.id}')" style="color:#6366f1;border-color:rgba(99,102,241,.3)">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="7,23 3,19 7,15"/><path d="M21 13v2a4 4 0 01-4 4H3"/></svg> → Kassa
         </button>
@@ -7230,9 +7230,39 @@ function renderBankAccounts(){
     </div>`;
   }).join('');
 
+  // ===== HARAJATLAR (bu bo'limda yuritiladi) =====
+  const realExp=expenses.filter(e=>e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'&&e.type!=='bank_transfer'&&e.type!=='bank_to_kassa');
+  let listExp=[...realExp];
+  if(_expFrom){const fd=new Date(_expFrom);listExp=listExp.filter(e=>new Date(e.date)>=fd);}
+  if(_expTo){const td=new Date(_expTo);td.setHours(23,59,59);listExp=listExp.filter(e=>new Date(e.date)<=td);}
+  if(_expSrc==='kassa') listExp=listExp.filter(e=>expSource(e)==='kassa');
+  else if(_expSrc&&_expSrc!=='') listExp=listExp.filter(e=>e.bankId===_expSrc);
+
+  const expTotal=listExp.reduce((s,e)=>s+(e.amount||0),0);
+  const expKassa=listExp.filter(e=>expSource(e)==='kassa').reduce((s,e)=>s+(e.amount||0),0);
+  const expBank=expTotal-expKassa;
+
+  const srcName=function(e){
+    if(expSource(e)==='kassa') return 'Kassa';
+    const b=bankAccounts.find(a=>a.id===e.bankId);
+    return (b&&b.name)||'Bank';
+  };
+
+  const expRows=[...listExp].sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,300).map(e=>`<tr>
+    <td>${badge(e.category||'Boshqa','blue')}</td>
+    <td style="color:var(--text2)">${e.desc||'—'}</td>
+    <td>${expSource(e)==='kassa'?badge('Kassa','green'):badge(srcName(e),'purple')}</td>
+    <td style="font-weight:700;color:#ef4444">−${fmt(e.amount)}</td>
+    <td style="color:var(--text3);font-size:12px">${fmtDate(e.date)}</td>
+    <td style="font-size:12px">${e.by||'—'}</td>
+    ${hasPerm('expenses_delete')?`<td><button class="btn btn-danger btn-sm" onclick="deleteExpense(${e.id})">${svgIcon('trash',13)}</button></td>`:'<td></td>'}
+  </tr>`).join('');
+
   document.getElementById('page-content').innerHTML=`
     <div class="stat-grid" style="margin-bottom:16px">
       <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Jami hisoblarda</span></div><div class="stat-value" style="color:var(--accent2)">${fmt(total)}</div></div>
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Kassa qoldig'i</span></div><div class="stat-value" style="color:${calcKassaBalance()>=0?'#22c55e':'#ef4444'}">${fmt(calcKassaBalance())}</div></div>
+      <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Harajatlar (tanlangan davr)</span></div><div class="stat-value" style="color:#f59e0b">${fmt(expTotal)}</div><div class="stat-sub">Kassa: ${fmt(expKassa)} · Bank: ${fmt(expBank)}</div></div>
       <div class="stat-card"><div class="stat-card-header"><span class="stat-card-title">Hisoblar soni</span></div><div class="stat-value">${bankAccounts.length}</div></div>
     </div>
     <div class="card">
@@ -7241,7 +7271,42 @@ function renderBankAccounts(){
         <button class="btn btn-primary btn-sm" onclick="openBankEditModal(null)">+ Yangi hisob</button>
       </div>
       <div class="user-cards">${cards||'<div style="text-align:center;padding:40px;color:var(--text3)">Bank hisob qo\'shilmagan</div>'}</div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Harajatlar</span>
+        <div class="flex gap-8">
+          ${hasPerm('expenses_add')?`<button class="btn btn-primary btn-sm" onclick="openExpModal()">${svgIcon('plus',14)} Harajat qo'shish</button>`:''}
+          <button class="btn btn-outline btn-sm" onclick="openExpCatModal()">Kategoriyalar</button>
+          <button class="btn btn-success btn-sm" onclick="exportExpensesExcel('${_expFrom}','${_expTo}',${(!_expFrom&&!_expTo)})">${svgIcon('download',13)} Excel</button>
+        </div>
+      </div>
+      <div class="flex gap-8 items-center wrap" style="margin-bottom:12px">
+        <span style="font-size:12px;color:var(--text3)">Davr:</span>
+        <input type="date" class="form-input" style="width:150px;padding:6px 10px" value="${_expFrom}" onchange="filterBankExpenses(this.value,'${_expTo}','${_expSrc}')" />
+        <span style="color:var(--text3)">—</span>
+        <input type="date" class="form-input" style="width:150px;padding:6px 10px" value="${_expTo}" onchange="filterBankExpenses('${_expFrom}',this.value,'${_expSrc}')" />
+        <select class="form-input" style="width:180px;padding:6px 10px" onchange="filterBankExpenses('${_expFrom}','${_expTo}',this.value)">
+          <option value="">Barcha manbalar</option>
+          <option value="kassa" ${_expSrc==='kassa'?'selected':''}>Kassa (qaytarish)</option>
+          ${bankAccounts.map(a=>`<option value="${a.id}" ${_expSrc===a.id?'selected':''}>${a.name}</option>`).join('')}
+        </select>
+        ${(_expFrom||_expTo||_expSrc)?`<button class="btn btn-ghost btn-sm" onclick="filterBankExpenses('','','')">Tozalash</button>`:''}
+        <span class="badge badge-blue" style="margin-left:auto">${listExp.length} ta yozuv</span>
+      </div>
+      <div style="overflow:auto">
+        <table><thead><tr><th>Kategoriya</th><th>Izoh</th><th>Manba</th><th>Summa</th><th>Sana</th><th>Kim</th><th></th></tr></thead>
+        <tbody>${expRows||'<tr><td colspan="7" style="text-align:center;padding:24px;color:var(--text3)">Harajatlar yo\'q</td></tr>'}</tbody></table>
+      </div>
     </div>`;
+}
+
+// Harajatlar filtri (Bank hisob bo'limi)
+let _expFrom='', _expTo='', _expSrc='';
+function filterBankExpenses(from,to,src){
+  _expFrom=from||''; _expTo=to||''; _expSrc=src||'';
+  renderBankAccounts();
 }
 
 function openBankEditModal(id){
@@ -7346,7 +7411,6 @@ function saveBankToKassa(bankId){
     bankTxnRef:txnId
   });
 
-  addAudit('Bank → Kassa transfer',`${fmt(amount)} ← ${bank.name}`,'Bank hisob');
   save();
   closeModal();
   toast(`${fmt(amount)} ${bank.name} dan kassaga o'tkazildi!`);
@@ -7398,7 +7462,6 @@ function saveBankTxn(bankId, type){
   });
   save(); toast(type==='income'?`+${fmt(amount)} kirim qilindi!`:`-${fmt(amount)} chiqim qilindi!`);
   closeModal(); renderBankAccounts();
-  addAudit('Bank '+(type==='income'?'kirim':'chiqim'), `${fmt(amount)}: ${desc}`,'Bank hisob');
 }
 
 function showBankHistory(bankId){
@@ -7471,7 +7534,6 @@ function confirmWarehouseTransfer(){
   save();
   toast(`${qty} ta "${p.name}" → ${(toBranch&&toBranch.name)||''} ga o'tkazildi!`);
   closeModal();
-  addAudit('Ombor o\'tkazish', `${qty} × ${p.name}: ${(fromBranch&&fromBranch.name)||''} → ${(toBranch&&toBranch.name)||''}`,'Ombor');
 }
 
 // Mahsulotga rasm yuklash
@@ -7527,7 +7589,7 @@ const TRANSLATIONS = {
     warehouse:'Ombor', inventory:'Inventarizatsiya', operations:'Kassa Amaliyot',
     users:'Foydalanuvchilar', chat:'Xabarlar', debts:'Qarzlar',
     settings:'Sozlamalar', partners:'Hamkorlar', branches:'Filiallar',
-    analytics:'Analitika', loyalty:'Chegirma kartalar', bank:'Bank hisob', audit:'Audit log',
+    analytics:'Analitika', loyalty:'Chegirma kartalar', bank:'Bank hisob',
     sell:'Sotish', total:'Jami', discount:'Chegirma', payment:'To\'lov',
     save:'Saqlash', cancel:'Bekor', add:'Qo\'shish', edit:'Tahrirlash', delete:'O\'chirish',
   },
@@ -7536,7 +7598,7 @@ const TRANSLATIONS = {
     warehouse:'Склад', inventory:'Инвентаризация', operations:'Операции',
     users:'Пользователи', chat:'Сообщения', debts:'Долги',
     settings:'Настройки', partners:'Партнёры', branches:'Филиалы',
-    analytics:'Аналитика', loyalty:'Карты лояльности', bank:'Банк счета', audit:'Журнал аудита',
+    analytics:'Аналитика', loyalty:'Карты лояльности', bank:'Банк счета',
     sell:'Продать', total:'Итого', discount:'Скидка', payment:'Оплата',
     save:'Сохранить', cancel:'Отмена', add:'Добавить', edit:'Изменить', delete:'Удалить',
   },
@@ -7545,7 +7607,7 @@ const TRANSLATIONS = {
     warehouse:'Warehouse', inventory:'Inventory', operations:'Operations',
     users:'Users', chat:'Messages', debts:'Debts',
     settings:'Settings', partners:'Partners', branches:'Branches',
-    analytics:'Analytics', loyalty:'Loyalty Cards', bank:'Bank Accounts', audit:'Audit Log',
+    analytics:'Analytics', loyalty:'Loyalty Cards', bank:'Bank Accounts',
     sell:'Sell', total:'Total', discount:'Discount', payment:'Payment',
     save:'Save', cancel:'Cancel', add:'Add', edit:'Edit', delete:'Delete',
   }
@@ -7687,9 +7749,10 @@ function saveCompanySettings(){
   appSettings.companyAddress=((document.getElementById('set-caddr')||{}).value||'').trim();
   appSettings.receiptFooter=((document.getElementById('set-footer')||{}).value||'').trim();
   appSettings.lowStockThreshold=parseInt((document.getElementById('set-threshold')||{}).value||10)||10;
+  const ks=document.getElementById('set-kassa-start');
+  if(ks) appSettings.kassaStart=parseFloat(ks.value||0)||0;
   save();
   toast('Kompaniya sozlamalari saqlandi!');
-  addAudit('Sozlamalar yangilandi','Kompaniya ma\'lumotlari','Sozlamalar');
 }
 
 function renderSettings() {
@@ -7815,6 +7878,9 @@ function renderSettings() {
           <input id="set-footer" class="form-input" value="${appSettings.receiptFooter||''}" placeholder="Xaridingiz uchun rahmat!"/></div>
         <div class="form-group"><label class="form-label">Kam qoldiq ogohlantirish chegarasi</label>
           <input id="set-threshold" type="number" class="form-input" value="${appSettings.lowStockThreshold||10}" min="1"/></div>
+        <div class="form-group"><label class="form-label">Boshlang'ich kassa qoldig'i (so'm)</label>
+          <input id="set-kassa-start" type="number" class="form-input" value="${appSettings.kassaStart||0}"/>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px">Tizim ishga tushgan paytda kassada bo'lgan naqd pul. Kassa qoldig'i shu summadan boshlab hisoblanadi.</div></div>
         <button class="btn btn-primary btn-sm" onclick="saveCompanySettings()">Saqlash</button>
       </div>
 
@@ -9164,9 +9230,24 @@ function openSmenaClose(){
     return;
   }
   // Faqat joriy smenadagi harajatlar (smena_profit emas)
-  const smenaExpenses=expenses.filter(e=>e.smenaId===currentSmenaId&&e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income');
+  // Faqat KASSADAN to'langan harajatlar (bankdan to'langani kassaga ta'sir qilmaydi)
+  const smenaExpenses=expenses.filter(e=>e.smenaId===currentSmenaId&&e.type!=='smena_profit'&&e.type!=='damage'&&e.type!=='partner_income'&&e.type!=='bank_transfer'&&e.type!=='bank_to_kassa'&&expSource(e)==='kassa');
   const smenaExp=smenaExpenses.reduce((s,e)=>s+e.amount,0);
   const openTime=smena?fmtDate(smena.openTime):'—';
+
+  // Smena ichidagi qo'shimcha kirimlar (hamkor to'lovi, bankdan kassaga)
+  const smenaIn=expenses.filter(e=>e.smenaId===currentSmenaId&&(e.type==='partner_income'||e.type==='bank_to_kassa'))
+    .reduce((s,e)=>s+Math.abs(e.amount||0),0);
+  // Kassadan bankka o'tkazma
+  const smenaToBank=expenses.filter(e=>e.smenaId===currentSmenaId&&e.type==='bank_transfer')
+    .reduce((s,e)=>s+(e.amount||0),0);
+
+  // KUTILGAN QOLDIQ = tizim bo'yicha hozir kassada bo'lishi kerak bo'lgan pul
+  const kutilgan=calcKassaBalance();
+  // Ochilish qoldig'i (eski smenalarda yo'q bo'lsa — teskari hisoblab chiqamiz)
+  const openBal=(smena&&smena.openBalance!=null)
+    ?smena.openBalance
+    :(kutilgan-smenaRev-smenaIn+smenaExp+smenaToBank);
 
   openModal('Smenani yopish',`
     <div style="background:rgba(99,102,241,.06);border:1px solid #c7d2fe;border-radius:12px;padding:12px 16px;margin-bottom:14px;font-size:13px;color:#4338ca">
@@ -9180,7 +9261,7 @@ function openSmenaClose(){
         ${(()=>{const ret=smenaOrders.filter(o=>(o.returnedItems||[]).length>0);const retAmt=smenaOrders.reduce((s,o)=>(o.returnedItems||[]).reduce((r,ri)=>r+ri.price*ri.qty,0)+s,0);return ret.length>0?` · <span style="color:#f87171">-${fmt(retAmt)} qaytarilgan (${ret.length} ta)</span>`:''})()}
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
       <div style="background:#f0fdf4;border-radius:10px;padding:12px;text-align:center">
         <div style="font-size:11px;color:#64748b">Tushum</div>
         <div style="font-size:16px;font-weight:700;color:#16a34a">${fmt(smenaRev)}</div>
@@ -9190,12 +9271,23 @@ function openSmenaClose(){
         <div style="font-size:16px;font-weight:700;color:#ef4444">${fmt(smenaExp)}</div>
       </div>
     </div>
+    <div style="background:rgba(99,102,241,.06);border:1px solid rgba(99,102,241,.25);border-radius:12px;padding:12px 14px;margin-bottom:16px;font-size:13px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#64748b">Ochilish qoldig'i</span><b>${fmt(openBal)}</b></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#64748b">+ Savdo</span><b style="color:#16a34a">${fmt(smenaRev)}</b></div>
+      ${smenaIn?`<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#64748b">+ Boshqa kirim</span><b style="color:#16a34a">${fmt(smenaIn)}</b></div>`:''}
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#64748b">− Harajat</span><b style="color:#ef4444">${fmt(smenaExp)}</b></div>
+      ${smenaToBank?`<div style="display:flex;justify-content:space-between;margin-bottom:4px"><span style="color:#64748b">− Bankka o'tkazma</span><b style="color:#ef4444">${fmt(smenaToBank)}</b></div>`:''}
+      <div style="display:flex;justify-content:space-between;border-top:1px solid rgba(99,102,241,.25);margin-top:6px;padding-top:6px">
+        <span style="font-weight:700">Kassada bo'lishi kerak</span>
+        <b style="color:#6366f1;font-size:16px">${fmt(kutilgan)}</b>
+      </div>
+    </div>
     <div class="form-group">
       <label class="form-label">Fakticheski kassa summasi (so'm)</label>
-      <input id="smena-faktual" type="number" class="form-input" placeholder="Kassadagi haqiqiy summa" oninput="calcSmenaDiff(${smenaRev});showNumHint(this)" />
+      <input id="smena-faktual" type="number" class="form-input" placeholder="Kassadagi haqiqiy summa" oninput="calcSmenaDiff(${kutilgan});showNumHint(this)" />
     </div>
     <div id="smena-diff-box" style="display:none;border-radius:10px;padding:14px;text-align:center;margin-bottom:16px">
-      <div style="font-size:12px;color:#64748b;margin-bottom:4px">Foyda / farq</div>
+      <div style="font-size:12px;color:#64748b;margin-bottom:4px">Farq (izlishek / kamomad)</div>
       <div id="smena-diff-val" style="font-size:22px;font-weight:800"></div>
     </div>
     <div class="form-group">
@@ -9203,14 +9295,14 @@ function openSmenaClose(){
       <input id="smena-note" class="form-input" placeholder="Smena izohi..." />
     </div>
     <div class="flex gap-10">
-      <button class="btn btn-warning btn-md" onclick="closeSmena(${smenaRev})">Smenani yopish</button>
+      <button class="btn btn-warning btn-md" onclick="closeSmena(${smenaRev},${kutilgan},${smenaExp},${openBal})">Smenani yopish</button>
       <button class="btn btn-ghost btn-md" onclick="closeModal()">Bekor</button>
     </div>`,460);
 }
 
-function calcSmenaDiff(smenaRev){
+function calcSmenaDiff(kutilgan){
   const faktual=parseFloat((document.getElementById('smena-faktual')||{}).value||0)||0;
-  const diff=faktual-smenaRev;
+  const diff=faktual-kutilgan;
   const box=document.getElementById('smena-diff-box');
   const val=document.getElementById('smena-diff-val');
   if(!box||!val)return;
@@ -9221,24 +9313,43 @@ function calcSmenaDiff(smenaRev){
   val.textContent=(diff>=0?'+ ':'')+fmt(diff);
 }
 
-function closeSmena(smenaRev){
-  const faktual=parseFloat((document.getElementById('smena-faktual')||{}).value||0)||0;
+function closeSmena(smenaRev, kutilgan, smenaExp, openBal){
+  const raw=((document.getElementById('smena-faktual')||{}).value||'').trim();
   const note=((document.getElementById('smena-note')||{}).value||'').trim();
-  if(!faktual){toast('Fakticheski summani kiriting!','error');return;}
-  const diff=faktual-smenaRev;
+  if(raw===''){toast('Fakticheski summani kiriting!','error');return;}
+  const faktual=parseFloat(raw)||0;
+
+  // FARQ = haqiqiy pul - tizim bo'yicha bo'lishi kerak bo'lgan pul
+  // manfiy = kamomad, musbat = izlishek
+  const kassaDiff=faktual-(Number(kutilgan)||0);
   const closedSmenaId=currentSmenaId;
 
   // Joriy smenani yopish
-  smenas=smenas.map(s=>s.id===closedSmenaId?{...s,closed:true,closeTime:new Date().toISOString(),closeBy:currentUser.name,faktual,smenaRev,diff,note}:s);
+  smenas=smenas.map(s=>s.id===closedSmenaId?{...s,
+    closed:true,
+    closeTime:new Date().toISOString(),
+    closeBy:currentUser.name,
+    openBalance:(s.openBalance!=null?s.openBalance:(Number(openBal)||0)),
+    smenaRev:smenaRev,
+    smenaExp:(Number(smenaExp)||0),
+    kutilgan:(Number(kutilgan)||0),
+    faktual:faktual,
+    kassaDiff:kassaDiff,   // kassa qoldig'iga tuzatma sifatida qo'shiladi
+    closeBalance:faktual,  // keyingi smena shu summadan boshlanadi
+    diff:kassaDiff,
+    profit:smenaRev-(Number(smenaExp)||0),
+    note:note
+  }:s);
 
-  // Smena foydasi harajat sifatida saqlash
+  // Smena yozuvi — faqat hisobot uchun (kassa harakatiga TA'SIR QILMAYDI)
   expenses.push({
     id:Date.now(),
-    category:'Smena foydasi',
-    desc:`Smena #${closedSmenaId} yopildi. Fakticheski: ${fmt(faktual)}, Tushum: ${fmt(smenaRev)}${note?'. '+note:''}`,
-    amount:Math.abs(diff),
+    category:'Smena yakuni',
+    desc:`Smena #${closedSmenaId} yopildi. Kutilgan: ${fmt(kutilgan)}, Fakticheski: ${fmt(faktual)}, Farq: ${fmt(kassaDiff)}${note?'. '+note:''}`,
+    amount:Math.abs(kassaDiff),
     type:'smena_profit',
-    profit:diff,
+    profit:smenaRev-(Number(smenaExp)||0),
+    kassaDiff:kassaDiff,
     smenaId:closedSmenaId,
     branchId:currentBranchId||null,
     date:new Date().toISOString(),
@@ -9250,18 +9361,19 @@ function closeSmena(smenaRev){
 
   save();
   closeModal();
-  toast(diff>=0?`Smena yopildi! Foyda: +${fmt(diff)}`:`Smena yopildi. Kamomad: ${fmt(diff)}`);
+  toast(kassaDiff===0?'Smena yopildi! Kassa to\'g\'ri.':(kassaDiff>0?`Smena yopildi. Izlishek: +${fmt(kassaDiff)}`:`Smena yopildi. Kamomad: ${fmt(kassaDiff)}`));
 
   // Dashboard ga qaytamiz + smena ochish tugmasi ko'rinsin
   goPage('dashboard');
 
-  // 500ms kutib smena ochish modalini ko'rsat
   setTimeout(()=>{
     openModal('✅ Smena yopildi!',
       '<div style="text-align:center;padding:8px 0 16px">'
       +'<div style="font-size:52px;margin-bottom:12px">✅</div>'
       +'<div style="font-size:15px;font-weight:700;color:#22c55e;margin-bottom:8px">Smena muvaffaqiyatli yopildi!</div>'
-      +'<div style="font-size:13px;color:var(--text2);margin-bottom:4px">Foyda: <b style="color:'+(diff>=0?'#22c55e':'#ef4444')+'">'+fmt(diff)+'</b></div>'
+      +'<div style="font-size:13px;color:var(--text2);margin-bottom:4px">Smena foydasi: <b>'+fmt(smenaRev-(Number(smenaExp)||0))+'</b></div>'
+      +'<div style="font-size:13px;color:var(--text2);margin-bottom:4px">Kassa farqi: <b style="color:'+(kassaDiff>=0?'#22c55e':'#ef4444')+'">'+fmt(kassaDiff)+'</b></div>'
+      +'<div style="font-size:13px;color:var(--text2)">Yangi kassa qoldig\'i: <b style="color:#6366f1">'+fmt(faktual)+'</b></div>'
       +'</div>'
       +'<button class="btn btn-primary btn-md w-full" style="justify-content:center;margin-bottom:10px" onclick="closeModal();openNewSmena()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:inline;vertical-align:-2px;margin-right:5px"><polygon points="5,3 19,12 5,21"/></svg>Yangi smena ochish</button>'
       +'<button class="btn btn-ghost btn-md w-full" style="justify-content:center" onclick="closeModal()">Keyinroq ochaman</button>',380);
@@ -9290,14 +9402,16 @@ function saveSmenaEdit(smenaId){
   if(!s)return;
   const faktual=parseFloat((document.getElementById('edit-smena-faktual')||{}).value||0);
   const note=((document.getElementById('edit-smena-note')||{}).value||'').trim();
-  const diff=faktual-(s.smenaRev||0);
+  // Kutilgan summa smena yopilganda saqlangan; yo'q bo'lsa eski usulda
+  const kutilgan=(s.kutilgan!=null)?s.kutilgan:((s.openBalance||0)+(s.smenaRev||0)-(s.smenaExp||0));
+  const kassaDiff=faktual-kutilgan;
 
-  smenas=smenas.map(x=>x.id===smenaId?{...x,faktual,diff,note}:x);
+  smenas=smenas.map(x=>x.id===smenaId?{...x,faktual,kutilgan,kassaDiff,diff:kassaDiff,closeBalance:faktual,note}:x);
 
-  // Bog'liq smena_profit harajatini ham yangilash
+  // Bog'liq smena yozuvini ham yangilash
   expenses=expenses.map(e=>{
     if(e.type==='smena_profit'&&e.smenaId===smenaId){
-      return{...e,amount:Math.abs(diff),profit:diff,desc:`Smena #${smenaId} yopildi. Fakticheski: ${fmt(faktual)}, Tushum: ${fmt(s.smenaRev||0)}${note?'. '+note:''}`};
+      return{...e,amount:Math.abs(kassaDiff),kassaDiff:kassaDiff,desc:`Smena #${smenaId} yopildi. Kutilgan: ${fmt(kutilgan)}, Fakticheski: ${fmt(faktual)}, Farq: ${fmt(kassaDiff)}${note?'. '+note:''}`};
     }
     return e;
   });
